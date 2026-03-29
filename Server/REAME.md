@@ -93,3 +93,28 @@ pip install -r requirements.txt
 # Start the server
 python server.py
 ```
+
+### MicroPython Environment Setup (Thonny)
+The ESP32 microcontrollers require specific libraries to handle WebSocket communication. These must be installed directly onto the board's flash memory using Thonny's REPL and the MicroPython package manager (`mip`).
+
+1. **Connect the Board to Wi-Fi**
+```Python
+import network
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect('YOUR_WIFI_NAME', 'YOUR_WIFI_PASSWORD')
+```
+2. **Install Dependencies via `mip`**
+Run the following commands in the REPL to install the standard logging module and the WebSocket client.
+
+```Python
+import mip
+
+# Install the lightweight MicroPython logging module
+mip.install("logging")
+
+# Install the uwebsockets client directly to the /lib directory
+mip.install("[https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/client.py](https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/client.py)", target="/lib/uwebsockets")
+mip.install("[https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/protocol.py](https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/protocol.py)", target="/lib/uwebsockets")
+```
+
