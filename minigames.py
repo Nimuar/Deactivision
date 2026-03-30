@@ -3,6 +3,7 @@ from machine import Pin
 from machine import ADC
 from machine import PWM
 
+##############GPIO SETUP##############
 led_board = Pin(13, Pin.OUT)
 red_led = Pin(12, Pin.OUT)
 green_led = Pin(27, Pin.OUT)
@@ -16,3 +17,38 @@ pot = ADC(Pin(34, Pin.IN))
 
 pwm_speaker = PWM(Pin(32), freq=10, duty_u16=512) 
 
+##########COMMON FUNCTIONS##########
+
+def set_led(color):
+    if color == "red":
+        red_led.value(1)
+        green_led.value(0)
+        yellow_led.value(0)
+    elif color == "green":
+        red_led.value(0)
+        green_led.value(1)
+        yellow_led.value(0)
+    elif color == "yellow":
+        red_led.value(0)
+        green_led.value(0)
+        yellow_led.value(1)
+
+
+##########SERVER CONFIGURATION#########
+
+
+###############wAVELENGTH##############
+
+
+###############MEMORY GAME#############
+
+
+##########ROCK PAPER SCISSORS##########
+
+
+
+
+##########MAIN LOOP##########
+
+while True:
+    pass
