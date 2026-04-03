@@ -1,3 +1,5 @@
+from timeit import Timer
+
 import machine
 from machine import Pin
 from machine import ADC
@@ -18,9 +20,14 @@ yellow_button_cnt = 0
 
 button_timer = Timer(0)
 pot_timer = Timer(1)
+wavelength_timer = Timer(2)
+wave_timeout = False
 
 pot = ADC(Pin(34, Pin.IN))
 pwm_speaker = PWM(Pin(32), freq=10, duty_u16=512) 
+
+game = "none"
+role = "none"
 
 ##########COMMON FUNCTIONS##########
 
@@ -80,28 +87,40 @@ yellow_button.irq(handler=yellow_buttonpress,trigger=Pin.IRQ_RISING)
 
 
 ###############wAVELENGTH##############
+def wavelength_timeout(t):
+    global wave_timeout
+    wave_timeout = True
+
 def potread(t):
     global pot_val
     pot_val = pot.read()
 
 def Wavelength_player():
-    #Receive word/category and display as text
+    button_count = red_button_cnt + green_button_cnt + yellow_button_cnt
+    Wavestate = "active"
+    #Receive word/category and display as text - need help Henry/Tom
     #Start 30sec timer
+    wavelength_timer.init(period=30000, mode=Timer.ONE_SHOT, callback=wavelength_timeout)
     #Display countdown on board?
-    #Read POT
+    #Read POT if we need to display it, otherwise just read when timer expires or button is hit. 
     pot_timer.init(period=100, mode=Timer.PERIODIC, callback=potread)
-
     #Display POT(0-100%) on board as feedback?
     #IF any button is pressed, or if 30sec timer expires then save and submit POT
-
-def Wavelength_host():
-
+    while Wavestate == "active":
+        if button_count != (red_button_cnt + green_button_cnt + yellow_button_cnt) OR (wave_timeout == True):
+            pot_value = pot.read()
+            Wavestate = "inactive"
+            wavelength_timer.deinit()
+            #Submit pot_val to server
 
 def Wavelength_lobby():
     #Server decides who host/player are 
     #OPTIONAL: Potentiometer calibration
     #Based on server assignment call the appropriate host or player function
-    #
+    if role == "host":
+        Wavelength_host()
+    elif role == "player":
+        Wavelength_player()
 
 
 ###############MEMORY GAME#############
@@ -118,3 +137,10 @@ while True:
     #Server config
     #Send to game lobby for voting
     #based on vote, send to correct game function
+    if game == "wavelength":
+        Wavelength_lobby()
+    elif game == "memory":
+        Memory_lobby()
+    elif game == "rock paper scissors":
+        RPS_lobby()
+
