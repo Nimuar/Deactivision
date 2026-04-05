@@ -7,3 +7,5 @@ Timestamp,Device ID,Event Type,Level Reached,Status,Details
 2026-04-05 10:39:39,ESP32_LEAD,BATCH_WIN,10,WIN,"['win', 'win', 'win', 'win', 'win', 'win', 'win', 'win', 'win', 'win']"
 2026-04-05 10:39:39,ESP32_LEAD,NEXT_BATCH_SENT,11-20,PENDING,
 2026-04-05 10:40:35,ESP32_LEAD,GAME_OVER,12,LOSS,"['win', 'loss']"
+2026-04-05 15:02:53,ESP32_LEAD,GAME_START,1-10,PENDING,Sent initial batch
+2026-04-05 15:03:14,ESP32_LEAD,GAME_OVER,2,LOSS,"['win', 'loss']"
