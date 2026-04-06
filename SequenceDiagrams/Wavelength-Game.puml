@@ -1,0 +1,53 @@
+@startuml
+title STM32 LED Memory Game Sequence
+
+participant "PlayerController" as Player
+participant "LeaderController" as Leader
+participant "Server"
+
+== Setup ==
+Player -> Server: Connection/Handshake
+Leader -> Server: Connection/Handshake
+Server -> Player: Ack/AssignPlayerID
+Server -> Leader: Ack/AssignPlayerID
+
+== Game Selection ==
+
+Player -> Server: SubmitVote(gameChoice)
+Server -> Player: VoteReceived/CurrentTally
+Server -> Leader: VoteReceived/CurrentTally
+Server -> Server: DetermineMostPopularVote
+Server -> Player: GameSelected(game)
+Server -> Leader: GameSelected(game)
+
+== Game is Wavelength ==
+alt Game is Wavelength
+  Server -> Leader: SendPrompt(category, word)
+else Other game
+  Server -> Player: StartOtherGame(game)
+  Server -> Leader: StartOtherGame(game)
+end
+
+== Calibration ==
+Player -> Player: CalibratePotRange
+Leader -> Leader: CalibratePotRange
+
+== Leader Submission ==
+Leader -> Server: SubmitLeaderValue(value)
+
+== Player Guessing Phase ==
+Server -> Player: RequestGuess(timeLimitSeconds)
+
+loop within xxx seconds
+Server -> Player: SubmitGuess(value)
+end
+
+== Scoring and Progression ==
+Server -> Server: ComputeClosestToLeader
+Server -> Player: AwardPoints(points)
+Server -> Player: RoundResults(leaderValue, guesses, winnerID)
+Server -> Leader: RoundResults(leaderValue, guesses, winnerID)
+Server -> Player: NewLeaderSelected(newLeaderID)
+Server -> Leader: NewLeaderSelected(newLeaderID)
+
+@enduml
