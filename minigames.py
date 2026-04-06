@@ -1,9 +1,5 @@
-from timeit import Timer
-
 import machine
-from machine import Pin
-from machine import ADC
-from machine import PWM
+from machine import Pin, ADC, PWM, Timer
 
 ##############GPIO SETUP##############
 led_board = Pin(13, Pin.OUT)
@@ -14,6 +10,12 @@ yellow_led = Pin(33, Pin.OUT)
 red_button = Pin(19, Pin.IN, Pin.PULL_DOWN)
 green_button = Pin(5, Pin.IN, Pin.PULL_DOWN)
 yellow_button = Pin(4, Pin.IN, Pin.PULL_DOWN)
+red_button_pressed = False
+green_button_pressed = False
+yellow_button_pressed = False
+_red_debounce_active = False
+_green_debounce_active = False
+_yellow_debounce_active = False
 red_button_cnt = 0
 green_button_cnt = 0
 yellow_button_cnt = 0
@@ -46,6 +48,10 @@ def set_led(color):
         red_led.value(0)
         green_led.value(0)
         yellow_led.value(1)
+    elif color == "all":
+        red_led.value(1)
+        green_led.value(1)
+        yellow_led.value(1)
 
 def clear_led():
         red_led.value(0)
@@ -55,31 +61,49 @@ def clear_led():
 
 ###########INTERRUPTS################   
     
-def yellow_buttonpress(Pin):
-    button_timer.init(period=50, mode=Timer.ONE_SHOT, callback=debounce_yellow)
+def yellow_buttonpress(pin):
+    global _yellow_debounce_active
+    if not _yellow_debounce_active:
+        _yellow_debounce_active = True
+        button_timer.init(period=20, mode=Timer.ONE_SHOT, callback=debounce_yellow)
 
-def green_buttonpress(Pin):
-    button_timer.init(period=50, mode=Timer.ONE_SHOT, callback=debounce_green)
+def green_buttonpress(pin):
+    global _green_debounce_active
+    if not _green_debounce_active:
+        _green_debounce_active = True
+        button_timer.init(period=20, mode=Timer.ONE_SHOT, callback=debounce_green)
     
-def red_buttonpress(Pin):
-    button_timer.init(period=50, mode=Timer.ONE_SHOT, callback=debounce_red)
+def red_buttonpress(pin):
+    global _red_debounce_active
+    if not _red_debounce_active:
+        _red_debounce_active = True
+        button_timer.init(period=20, mode=Timer.ONE_SHOT, callback=debounce_red)
 
 def debounce_yellow(t):
-    global yellow_button_cnt
-    yellow_button_cnt = yellow_button_cnt + 1
+    global yellow_button_pressed, _yellow_debounce_active, yellow_button_cnt
+    if yellow_button.value() == 1:
+        yellow_button_pressed = True
+        yellow_button_cnt = yellow_button_cnt + 1
+    _yellow_debounce_active = False
 
 def debounce_green(t):
-    global green_button_cnt
-    green_button_cnt = green_button_cnt + 1
+    global green_button_pressed, _green_debounce_active, green_button_cnt
+    if green_button.value() == 1:
+        green_button_pressed = True
+        green_button_cnt = green_button_cnt + 1
+    _green_debounce_active = False
 
 def debounce_red(t):
-    global red_button_cnt
-    red_button_cnt = red_button_cnt + 1
+    global red_button_pressed, _red_debounce_active, red_button_cnt
+    if red_button.value() == 1:
+        red_button_pressed = True
+        red_button_cnt = red_button_cnt + 1
+    _red_debounce_active = False
 
 
-red_button.irq(handler=red_buttonpress,trigger=Pin.IRQ_RISING)
-green_button.irq(handler=green_buttonpress,trigger=Pin.IRQ_RISING)
-yellow_button.irq(handler=yellow_buttonpress,trigger=Pin.IRQ_RISING)
+red_button.irq(handler=red_buttonpress, trigger=Pin.IRQ_RISING)
+green_button.irq(handler=green_buttonpress, trigger=Pin.IRQ_RISING)
+yellow_button.irq(handler=yellow_buttonpress, trigger=Pin.IRQ_RISING)
 
 ##########SERVER CONFIGURATION#########
 
@@ -107,7 +131,7 @@ def Wavelength_player():
     #Display POT(0-100%) on board as feedback?
     #IF any button is pressed, or if 30sec timer expires then save and submit POT
     while Wavestate == "active":
-        if button_count != (red_button_cnt + green_button_cnt + yellow_button_cnt) OR (wave_timeout == True):
+        if button_count != (red_button_cnt + green_button_cnt + yellow_button_cnt) or (wave_timeout == True):
             pot_value = pot.read()
             Wavestate = "inactive"
             wavelength_timer.deinit()
@@ -133,6 +157,7 @@ def Wavelength_lobby():
 
 ##########MAIN LOOP##########
 
+'''
 while True:
     #Server config
     #Send to game lobby for voting
@@ -143,4 +168,4 @@ while True:
         Memory_lobby()
     elif game == "rock paper scissors":
         RPS_lobby()
-
+'''
