@@ -7,6 +7,7 @@ from machine import I2C
 from Server import ServerConn
 
 from lcd_i2c.lcd_i2c import LCD
+from neopixel import NeoPixel
 
 ##############LCD DEMO TEXT###############
 #sda = Pin(22)
@@ -43,7 +44,7 @@ red_button_cnt = 0
 green_button_cnt = 0
 yellow_button_cnt = 0
 
-btn = Pin(38, Pin.IN, Pin.PULL_DOWN)
+btn = Pin(38, Pin.IN, Pin.PULL_UP)
 
 button_timer = Timer(0)
 pot_timer = Timer(1)
@@ -52,6 +53,12 @@ wave_timeout = False
 
 pot = ADC(Pin(34, Pin.IN))
 pwm_speaker = PWM(Pin(32), freq=10, duty_u16=512)
+
+PIN_NEO_PWR = 2
+PIN_NEO_DATA = 0
+neo_pwr = machine.Pin(PIN_NEO_PWR, machine.Pin.OUT)
+neo_pwr.value(1)
+np = NeoPixel(machine.Pin(PIN_NEO_DATA), 1)
 
 # LCD
 i2c = I2C(0, scl=Pin(21), sda=Pin(22), freq=400_000)
@@ -67,6 +74,10 @@ game = "none"
 role = "none"
 
 ##########COMMON FUNCTIONS##########
+
+def set_neo_color(color):
+    np[0] = color
+    np.write()
 
 def set_led(color):
     #Can be called to set any of the LEDs by passing the color you want to turn on.
@@ -195,9 +206,58 @@ yellow_button.irq(handler=yellow_buttonpress,trigger=Pin.IRQ_RISING)
 
 ##########SERVER CONFIGURATION#########
 DEVICE_NAME = "ESP32_LEAD"
+WIFI_SSID = ""
+WIFI_PASS = ""
+SERVER_URL = f"ws://xxx.xxx.x.xxx:8000/ws/{DEVICE_NAME}" 
 
 
+############GAME SELECTIOIN###########
+# --- BUTTON GAME SELECTION STATE ---
+click_count = 0
+last_state = 1
+last_click_time = 0
+timeout_delay = 1000
 
+
+def init_button_state():
+    global click_count, last_state, last_click_time
+    click_count = 0
+    last_state = 1
+    last_click_time = 0
+    print("Press onboard button to select game")
+    show_message(lcd, "Press onboard button to select game")
+    return click_count, last_click_time, last_state
+
+
+def game_selection(btn, current_time, click_count, last_click_time, last_state):
+    current_button_state = btn.value()
+    #print("button.value():", current_button_state)
+
+    # --- edge detection (falling edge: pressed) ---
+    if current_button_state == 1 and last_state == 0:
+        if time.ticks_diff(current_time, last_click_time) > 50:
+            click_count += 1
+            last_click_time = current_time
+            print(f"Click! (Count: {click_count})")
+
+    last_state = current_button_state
+
+    game_selected = None
+
+    # --- timeout selection ---
+    if click_count > 0 and time.ticks_diff(current_time, last_click_time) > timeout_delay:
+        if click_count == 1:
+            game_selected = "led_memory"
+        elif click_count == 2:
+            game_selected = "rps"
+        elif click_count == 3:
+            game_selected = "wavelength"
+        else:
+            print(f"[X] Invalid input: {click_count} clicks.")
+
+        click_count = 0
+
+    return game_selected, click_count, last_click_time, last_state
 ###############WAVELENGTH##############
 def wavelength_timeout(t):
     global wave_timeout
