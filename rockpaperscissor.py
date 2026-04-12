@@ -41,9 +41,10 @@ def get_player_selection():
     mg.yellow_button_cnt = 0
 
     start_time = time.time()
-    timeout_seconds = 5
+    timeout_ms = 5000  # 5 second timeout
+    start_time = time.ticks_ms()
 
-    while time.time() - start_time < timeout_seconds:
+    while time.ticks_diff(time.ticks_ms(), start_time) < timeout_ms:
         if mg.red_button_cnt > 0:
             mg.lcd_print("Rock!")
             mg.set_led("red")
@@ -166,11 +167,6 @@ def RPS_player(websocket=None, device_id=None):
             sleep(2)
             break
 
-def RPS_host(websocket=None):
-    """Host logic for Rock Paper Scissors (placeholder)"""
-    # TODO: Implement host logic. Not sure what we'd need here since the server is handling game logic
-    mg.lcd_print("Host Mode")
-    pass
 
 ##########MAIN LOOP##########
 
