@@ -9,7 +9,7 @@ from neopixel import NeoPixel
 DEVICE_NAME = "ESP32_LEAD"
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk"
-SERVER_URL = f"ws://192.168.1.69:8000/ws/{DEVICE_NAME}" 
+SERVER_URL = f"ws://192.168.1.69:8000/ws/{DEVICE_NAME}"
 
 # --- Hardware Setup ---
 PIN_NEO_PWR = 2
@@ -25,7 +25,7 @@ def set_led(color):
     np.write()
 
 def connect_wifi():
-    set_led((50, 0, 0)) 
+    set_led((50, 0, 0))
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     if not wlan.isconnected():
@@ -36,14 +36,11 @@ def connect_wifi():
             print(".", end="")
     print("\nWiFi Connected! IP:", wlan.ifconfig()[0])
 
-
 # =========================================================
 # DEPENDENCY CHECK & INSTALLATION
 # =========================================================
-# 1. Connect to Wi-Fi FIRST so 'mip' has internet access
 connect_wifi()
 
-# 2. Check for third-party packages and install if missing
 print("\nChecking required packages...")
 try:
     import uwebsockets.client
@@ -52,31 +49,28 @@ except ImportError:
     print("[!] 'uwebsockets' is MISSING. Installing via mip...")
     try:
         import mip
-        
         print(" -> Installing 'logging'...")
         mip.install("logging")
-        
+
         print(" -> Installing 'uwebsockets/client.py'...")
         mip.install("https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/client.py", target="/lib/uwebsockets")
-        
+
         print(" -> Installing 'uwebsockets/protocol.py'...")
         mip.install("https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/protocol.py", target="/lib/uwebsockets")
-        
+
         print("[+] Successfully installed dependencies.")
-        import uwebsockets.client  # Import it now that it is installed
+        import uwebsockets.client
     except Exception as e:
         print(f"[X] Failed to install packages: {e}")
         set_led((50, 0, 0))
-        while True: time.sleep(1)  # Halt execution if installation fails
+        while True:
+            time.sleep(1)
 
-# 3. Import local game modules AFTER dependencies are cleared
 import memory
 import rockpaperscissor
 # =========================================================
 
-
 def connect_to_server():
-    """Forces a connection loop until the server is reached."""
     while True:
         try:
             print(f"\nConnecting to Server: {SERVER_URL}")
@@ -92,43 +86,43 @@ def connect_to_server():
 
 def main():
     websocket = connect_to_server()
-    
+
     click_count = 0
     last_click_time = 0
     timeout_delay = 1000
-    last_btn_state = 1  
+    last_btn_state = 1
 
     print("\nPRESS ONBOARD button once for memory game")
-    print("\nPRESS ONBOARD button twice for rock paper scissors")
-    
+    print("PRESS ONBOARD button twice for rock paper scissors")
+
     while True:
         try:
             time.sleep_ms(10)
             current_time = time.ticks_ms()
-            
+
             # --- 1. NON-BLOCKING NETWORK READ ---
             try:
                 incoming_data = websocket.recv()
                 if incoming_data:
                     msg = json.loads(incoming_data)
-                    
+
                     if msg.get("type") == "PATTERN":
                         patterns_array = msg.get("patterns")
-                        start_level = msg.get("start_level", 1) 
+                        start_level = msg.get("start_level", 1)
                         print(f"\n[SERVER -> ESP32]: Downloaded {len(patterns_array)} levels starting at Level {start_level}.")
-                        
+
                         print("\n[!] Disconnecting from server for offline gameplay...")
                         set_led((0, 0, 50))
                         try:
                             websocket.close()
                         except:
                             pass
-                        
+
                         results_log = memory.play_simon_game(patterns_array, start_level)
-                        
+
                         print("\n[!] Game finished. Reconnecting to upload results...")
                         websocket = connect_to_server()
-                        
+
                         payload = {
                             "type": "GAME_RESULTS",
                             "device_id": DEVICE_NAME,
@@ -136,19 +130,28 @@ def main():
                         }
                         websocket.send(json.dumps(payload))
                         print(f"--> Uploaded batch results: {results_log}")
-                        
+
                         if "loss" not in results_log:
                             print("\n[!] Perfect score! Waiting for the next batch of levels from the server...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+
+                    elif msg.get("type") == "RPS_WAITING":
+                        print("\n[SERVER -> ESP32]:", msg.get("message", "Waiting for opponent..."))
+
                     elif msg.get("type") == "RPS_READY":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        if msg.get("opponent"):
+                            print(f"[SERVER -> ESP32]: Opponent = {msg.get('opponent')}")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
-                        print("\n[!] RPS session ended. Listening for new game selection...")
+                        print("\n[!] RPS round ended. Back to waiting/listening mode...")
+
+                    elif msg.get("type") == "RPS_ERROR":
+                        print("\n[SERVER -> ESP32] RPS ERROR:", msg.get("message", "Unknown RPS error"))
 
             except OSError:
-                pass 
-            
+                pass
+
             # --- 2. BUTTON EDGE DETECTION ---
             current_btn_state = btn.value()
             if current_btn_state == 0 and last_btn_state == 1:
@@ -157,11 +160,11 @@ def main():
                     last_click_time = current_time
                     print(f"Click! (Count: {click_count})")
             last_btn_state = current_btn_state
-            
+
             # --- 3. PROCESS GAME SELECTION ---
             if click_count > 0 and time.ticks_diff(current_time, last_click_time) > timeout_delay:
                 game_selection = ""
-                
+
                 if click_count == 1:
                     game_selection = "led_memory"
                     print("\n[!] Selected: LED Memory Game")
@@ -174,7 +177,7 @@ def main():
                 else:
                     print(f"\n[X] Invalid input: {click_count} clicks. Resetting.")
                     game_selection = None
-                
+
                 if game_selection:
                     payload = {
                         "type": "GAME_SELECT",
@@ -188,7 +191,7 @@ def main():
                         print("\n[!] Connection lost during send. Reconnecting...")
                         websocket = connect_to_server()
                         websocket.send(json.dumps(payload))
-                
+
                 click_count = 0
                 gc.collect()
 

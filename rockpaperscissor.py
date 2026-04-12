@@ -3,7 +3,7 @@ from time import sleep
 import time
 import json
 
-##########ROCK PAPER SCISSORS##########
+########## ROCK PAPER SCISSORS ##########
 
 def countdown_buzzer():
     # Rock
@@ -29,19 +29,20 @@ def countdown_buzzer():
 
     # Shoot!
     mg.lcd_print("SHOOT!")
-    mg.clear_led()
     mg.beepSound(1000, 0.3)
     sleep(0.2)
     mg.clear_led()
 
-def get_player_selection():
-    """Wait for player to press a button and return their choice (with 5-second timeout)"""
+
+def get_player_selection(timeout_ms=5000):
+    """
+    Wait for one button press and return:
+      rock / paper / scissors / forfeit
+    """
     mg.red_button_cnt = 0
     mg.green_button_cnt = 0
     mg.yellow_button_cnt = 0
 
-    start_time = time.time()
-    timeout_ms = 5000  # 5 second timeout
     start_time = time.ticks_ms()
 
     while time.ticks_diff(time.ticks_ms(), start_time) < timeout_ms:
@@ -49,23 +50,33 @@ def get_player_selection():
             mg.lcd_print("Rock!")
             mg.set_led("red")
             mg.beepSound(600, 0.2)
+            sleep(0.3)
+            mg.clear_led()
             return "rock"
+
         elif mg.green_button_cnt > 0:
             mg.lcd_print("Paper!")
             mg.set_led("green")
             mg.beepSound(700, 0.2)
+            sleep(0.3)
+            mg.clear_led()
             return "paper"
+
         elif mg.yellow_button_cnt > 0:
             mg.lcd_print("Scissors!")
             mg.set_led("yellow")
             mg.beepSound(800, 0.2)
+            sleep(0.3)
+            mg.clear_led()
             return "scissors"
+
+        time.sleep_ms(10)
 
     mg.lcd_print("Forfeit!")
     return "forfeit"
 
+
 def send_selection_to_server(selection, websocket, device_id):
-    """Send player selection to server via WebSocket"""
     try:
         payload = {
             "type": "RPS_SELECTION",
@@ -73,106 +84,126 @@ def send_selection_to_server(selection, websocket, device_id):
             "selection": selection
         }
         websocket.send(json.dumps(payload))
-        print(f"Sent selection to server: {selection}")
+        print("Sent selection to server:", selection)
         return True
     except Exception as e:
-        print(f"Failed to send selection: {e}")
+        print("Failed to send selection:", e)
         return False
 
-def get_round_result(websocket):
-    """Wait for and receive round result from server"""
-    try:
-        # Wait for server response with timeout
-        timeout_ms = 5000  # 5 second timeout
-        start_time = time.ticks_ms()
-        
-        while time.ticks_diff(time.ticks_ms(), start_time) < timeout_ms:
-            try:
-                incoming_data = websocket.recv()
-                if incoming_data:
-                    msg = json.loads(incoming_data)
-                    if msg.get("type") == "RPS_RESULT":
-                        result = msg.get("result")
-                        print(f"Received result from server: {result}")
-                        return result
-            except OSError:
-                # No data available, continue waiting
-                pass
-            time.sleep_ms(10)  # Small delay to prevent busy waiting
-        
-        print("Timeout waiting for server result")
-        return "timeout"
-        
-    except Exception as e:
-        print(f"Failed to receive result: {e}")
-        return "error"
 
-def RPS_lobby(websocket=None):
-    """Rock Paper Scissors game lobby - handles role assignment"""
-    # Server decides who host/player are
-    # Based on server assignment call the appropriate host or player function
-    if mg.role == "host":
-        RPS_host(websocket)
-    elif mg.role == "player":
-        RPS_player(websocket)
-    elif mg.role == "Spectator":
-        RPS_spectator(websocket)
+def get_round_result(websocket, timeout_ms=8000):
+    """
+    Wait for server response after sending move.
+    Handles:
+      - RPS_WAITING
+      - RPS_RESULT
+      - RPS_ERROR
+    """
+    start_time = time.ticks_ms()
 
-def RPS_spectator(websocket=None):
-    """Spectator logic for Rock Paper Scissors"""
-    # TODO: Implement spectator logic. Display "Waiting for your turn..." and then show results after player selection.
-    mg.lcd_print("Spectator Mode")
-    pass
+    while time.ticks_diff(time.ticks_ms(), start_time) < timeout_ms:
+        try:
+            incoming_data = websocket.recv()
+            if incoming_data:
+                msg = json.loads(incoming_data)
+                msg_type = msg.get("type")
+
+                if msg_type == "RPS_WAITING":
+                    print("[RPS] Waiting:", msg.get("message", "Waiting for opponent..."))
+
+                elif msg_type == "RPS_RESULT":
+                    print("[RPS] Result received:", msg)
+                    return msg
+
+                elif msg_type == "RPS_ERROR":
+                    print("[RPS] Error:", msg.get("message", "Unknown RPS error"))
+                    return {"type": "RPS_ERROR", "message": msg.get("message", "Unknown RPS error")}
+
+        except OSError:
+            pass
+
+        time.sleep_ms(10)
+
+    return {"type": "RPS_ERROR", "message": "Timeout waiting for round result"}
+
+
+def show_round_result(result_msg):
+    """
+    Display server-decided round result on board.
+    Expected keys:
+      result, opponent_selection
+    """
+    result = result_msg.get("result", "error")
+    opponent = result_msg.get("opponent_selection", "?")
+
+    if result == "win":
+        mg.lcd_print("You Win!")
+        mg.set_led("green")
+        mg.beepSound(1000, 0.3)
+        sleep(1.5)
+
+    elif result == "lose":
+        mg.lcd_print("You Lose!")
+        mg.set_led("red")
+        mg.beepSound(400, 0.4)
+        sleep(1.5)
+
+    elif result == "tie":
+        mg.lcd_print("Tie! Opp:" + str(opponent))
+        mg.set_led("yellow")
+        mg.beepSound(750, 0.25)
+        sleep(1.5)
+
+    else:
+        mg.lcd_print("RPS Error")
+        mg.set_led("red")
+        sleep(1.5)
+
+    mg.clear_led()
+
 
 def RPS_player(websocket=None, device_id=None):
-    """Player logic for Rock Paper Scissors tournament"""
-    while True:  # Tournament loop - continue until eliminated
-        countdown_buzzer()
+    """
+    Play exactly ONE round of RPS, then return.
+    ServerConn.py should call this each time it receives RPS_READY.
+    """
+    if websocket is None or device_id is None:
+        print("RPS_player requires websocket and device_id")
+        return
 
-        selection = get_player_selection()
+    countdown_buzzer()
 
-        if websocket:
-            success = send_selection_to_server(selection, websocket, device_id)
-            if not success:
-                mg.lcd_print("Connection Error")
-                break
-        else:
-            print(f"Would send {selection} to server (no websocket)")
+    selection = get_player_selection()
 
-        if selection == "forfeit":
-            mg.lcd_print("Forfeited! Eliminated")
-            sleep(2)
-            break
+    success = send_selection_to_server(selection, websocket, device_id)
+    if not success:
+        mg.lcd_print("Send Error")
+        sleep(1.5)
+        mg.clear_led()
+        return
 
-        mg.lcd_print(f"You chose: {selection}")
-        sleep(1)
+    if selection == "forfeit":
+        mg.lcd_print("Forfeit Sent")
+    else:
+        mg.lcd_print("You chose: " + selection)
 
-        if websocket:
-            result = get_round_result(websocket)
-        else:
-            result = "win"
+    sleep(1)
 
-        if result == "win":
-            mg.lcd_print("Round won! Next round...")
-            sleep(2)
-        elif result == "lose":
-            mg.lcd_print("Round lost! Eliminated")
-            sleep(2)
-            break
-        elif result == "tie":
-            mg.lcd_print("It's a tie! Replay")
-            sleep(2)
-        elif result == "timeout" or result == "error":
-            mg.lcd_print("Server Error")
-            sleep(2)
-            break
+    result_msg = get_round_result(websocket)
+
+    if result_msg.get("type") == "RPS_RESULT":
+        show_round_result(result_msg)
+    else:
+        mg.lcd_print("Server Error")
+        sleep(1.5)
+        mg.clear_led()
+
+    # Important: return after ONE round
+    return
 
 
-##########MAIN LOOP##########
+########## MAIN LOOP ##########
 
 if __name__ == "__main__":
     countdown_buzzer()
-    get_player_selection()
-
-
-
+    print(get_player_selection())
