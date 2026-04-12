@@ -17,7 +17,7 @@ DEVICE_NAME = f"PLAYER_{short_id}"
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk"
 SERVER_IP = "192.168.1.69" 
-SERVER_URL = f"wss://hug-footless-aloft.ngrok-free.dev/ws/{DEVICE_NAME}"
+SERVER_URL = f"ws://eleven-shoes-begin.loca.lt/ws/{DEVICE_NAME}"
 
 print("====================================")
 print(f" +++ THIS BOARD IS: {DEVICE_NAME} +++")
