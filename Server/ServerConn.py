@@ -99,6 +99,7 @@ def main():
     last_btn_state = 1  
 
     print("\nPRESS ONBOARD button once for memory game")
+    print("\nPRESS ONBOARD button twice for rock paper scissors")
     
     while True:
         try:
