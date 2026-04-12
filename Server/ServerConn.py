@@ -3,13 +3,25 @@ import time
 import machine
 import json
 import gc
+import ubinascii 
 from neopixel import NeoPixel
 
-# --- DEVICE CONFIGURATION ---
-DEVICE_NAME = "ESP32_LEAD"
+# --- DEVICE CONFIGURATION (DYNAMIC PLUG-AND-PLAY) ---
+# Generate a unique ID using the last 4 characters of the ESP32's hardware MAC address
+mac_bytes = machine.unique_id()
+mac_str = ubinascii.hexlify(mac_bytes).decode('utf-8').upper()
+short_id = mac_str[-4:] 
+
+DEVICE_NAME = f"PLAYER_{short_id}"
+
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk"
-SERVER_URL = f"ws://192.168.1.69:8000/ws/{DEVICE_NAME}" 
+SERVER_IP = "192.168.1.69" 
+SERVER_URL = f"ws://{SERVER_IP}:8000/ws/{DEVICE_NAME}" 
+
+print("====================================")
+print(f" +++ THIS BOARD IS: {DEVICE_NAME} +++")
+print("====================================") 
 
 # --- Hardware Setup ---
 PIN_NEO_PWR = 2
