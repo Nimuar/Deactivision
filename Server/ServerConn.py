@@ -70,7 +70,8 @@ except ImportError:
         while True: time.sleep(1)  # Halt execution if installation fails
 
 # 3. Import local game modules AFTER dependencies are cleared
-import memory 
+import memory
+import rockpaperscissor
 # =========================================================
 
 
@@ -116,7 +117,7 @@ def main():
                         print(f"\n[SERVER -> ESP32]: Downloaded {len(patterns_array)} levels starting at Level {start_level}.")
                         
                         print("\n[!] Disconnecting from server for offline gameplay...")
-                        set_led((0, 0, 50)) 
+                        set_led((0, 0, 50))
                         try:
                             websocket.close()
                         except:
@@ -139,6 +140,10 @@ def main():
                             print("\n[!] Perfect score! Waiting for the next batch of levels from the server...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+                    elif msg.get("type") == "RPS_READY":
+                        print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
+                        print("\n[!] RPS session ended. Listening for new game selection...")
 
             except OSError:
                 pass 
