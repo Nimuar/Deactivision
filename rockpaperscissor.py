@@ -5,6 +5,7 @@ import json
 
 ########## ROCK PAPER SCISSORS ##########
 
+
 def countdown_buzzer():
     # Rock
     mg.lcd_print("Rock...")
@@ -81,7 +82,7 @@ def send_selection_to_server(selection, websocket, device_id):
         payload = {
             "type": "RPS_SELECTION",
             "device_id": device_id,
-            "selection": selection
+            "selection": selection,
         }
         websocket.send(json.dumps(payload))
         print("Sent selection to server:", selection)
@@ -109,7 +110,9 @@ def get_round_result(websocket, timeout_ms=8000):
                 msg_type = msg.get("type")
 
                 if msg_type == "RPS_WAITING":
-                    print("[RPS] Waiting:", msg.get("message", "Waiting for opponent..."))
+                    print(
+                        "[RPS] Waiting:", msg.get("message", "Waiting for opponent...")
+                    )
 
                 elif msg_type == "RPS_RESULT":
                     print("[RPS] Result received:", msg)
@@ -117,7 +120,10 @@ def get_round_result(websocket, timeout_ms=8000):
 
                 elif msg_type == "RPS_ERROR":
                     print("[RPS] Error:", msg.get("message", "Unknown RPS error"))
-                    return {"type": "RPS_ERROR", "message": msg.get("message", "Unknown RPS error")}
+                    return {
+                        "type": "RPS_ERROR",
+                        "message": msg.get("message", "Unknown RPS error"),
+                    }
 
         except OSError:
             pass
@@ -162,6 +168,27 @@ def show_round_result(result_msg):
     mg.clear_led()
 
 
+def wait_for_opponent(websocket):
+    """Blocks until the server sends RPS_READY"""
+
+    print("Waiting for opponent...")
+
+    while True:
+        try:
+            incoming_data = websocket.recv()
+            if incoming_data:
+                msg = json.loads(incoming_data)
+                if msg.get("type") == "RPS_READY":
+                    print("[RPS] Match found! Starting...")
+                    return True
+                elif msg.get("type") == "RPS_WAITING":
+                    pass
+        except OSError:
+            pass
+
+        time.sleep_ms(10)
+
+
 def RPS_player(websocket=None, device_id=None):
     """
     Play exactly ONE round of RPS, then return.
@@ -169,6 +196,10 @@ def RPS_player(websocket=None, device_id=None):
     """
     if websocket is None or device_id is None:
         print("RPS_player requires websocket and device_id")
+        return
+
+    match_found = wait_for_opponent(websocket)
+    if not match_found:
         return
 
     countdown_buzzer()
