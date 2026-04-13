@@ -1,3 +1,7 @@
+"""ATTENTION: this file runs on the Render Server and not on my computer, 
+it been changed especially in the main part"""
+
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import json
 import socket  
@@ -222,10 +226,12 @@ def get_local_ip():
 
 if __name__ == "__main__":
     import uvicorn
-    local_ip = get_local_ip()
+    import os
+
+    # Render provides a specific port. If not on Render, default to 8000.
+    port = int(os.environ.get("PORT", 8000)) 
+
     print("\n" + "="*55)
-    print("  MINIGAMES HOST SERVER INITIALIZING...")
-    print(f"  Detected Local IP : {local_ip}")
-    print(f"  Data Directory    : {DATA_DIR}")
+    print(f"  MINIGAMES HOST SERVER INITIALIZING ON PORT {port}...")
     print("="*55 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
