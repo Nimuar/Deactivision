@@ -3,13 +3,25 @@ import time
 import machine
 import json
 import gc
+import ubinascii 
 from neopixel import NeoPixel
 
-# --- DEVICE CONFIGURATION ---
-DEVICE_NAME = "ESP32_LEAD"
+# --- DEVICE CONFIGURATION (DYNAMIC PLUG-AND-PLAY) ---
+# Generate a unique ID using the last 4 characters of the ESP32's hardware MAC address
+mac_bytes = machine.unique_id()
+mac_str = ubinascii.hexlify(mac_bytes).decode('utf-8').upper()
+short_id = mac_str[-4:] 
+
+DEVICE_NAME = f"PLAYER_{short_id}"
+
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk"
-SERVER_URL = f"ws://192.168.1.69:8000/ws/{DEVICE_NAME}" 
+SERVER_IP = "192.168.1.69" 
+SERVER_URL = f"wss://minigames-render.onrender.com/ws/{DEVICE_NAME}"
+
+print("====================================")
+print(f" +++ THIS BOARD IS: {DEVICE_NAME} +++")
+print("====================================") 
 
 # --- Hardware Setup ---
 PIN_NEO_PWR = 2
@@ -19,6 +31,10 @@ neo_pwr.value(1)
 np = NeoPixel(machine.Pin(PIN_NEO_DATA), 1)
 
 btn = machine.Pin(38, machine.Pin.IN)
+
+# Mute the speaker immediately at boot
+speaker = machine.PWM(machine.Pin(32))
+speaker.duty_u16(0) 
 
 def set_led(color):
     np[0] = color
@@ -40,10 +56,8 @@ def connect_wifi():
 # =========================================================
 # DEPENDENCY CHECK & INSTALLATION
 # =========================================================
-# 1. Connect to Wi-Fi FIRST so 'mip' has internet access
 connect_wifi()
 
-# 2. Check for third-party packages and install if missing
 print("\nChecking required packages...")
 try:
     import uwebsockets.client
@@ -52,30 +66,25 @@ except ImportError:
     print("[!] 'uwebsockets' is MISSING. Installing via mip...")
     try:
         import mip
-        
         print(" -> Installing 'logging'...")
         mip.install("logging")
-        
         print(" -> Installing 'uwebsockets/client.py'...")
         mip.install("https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/client.py", target="/lib/uwebsockets")
-        
         print(" -> Installing 'uwebsockets/protocol.py'...")
         mip.install("https://raw.githubusercontent.com/danni/uwebsockets/master/uwebsockets/protocol.py", target="/lib/uwebsockets")
-        
         print("[+] Successfully installed dependencies.")
-        import uwebsockets.client  # Import it now that it is installed
+        import uwebsockets.client  
     except Exception as e:
         print(f"[X] Failed to install packages: {e}")
         set_led((50, 0, 0))
-        while True: time.sleep(1)  # Halt execution if installation fails
+        while True: time.sleep(1)
 
-# 3. Import local game modules AFTER dependencies are cleared
+# Import local game modules AFTER dependencies are cleared
 import memory 
+import wavelength 
 # =========================================================
 
-
 def connect_to_server():
-    """Forces a connection loop until the server is reached."""
     while True:
         try:
             print(f"\nConnecting to Server: {SERVER_URL}")
@@ -97,7 +106,15 @@ def main():
     timeout_delay = 1000
     last_btn_state = 1  
 
-    print("\nPRESS ONBOARD button once for memory game")
+    # Play a happy boot-up sequence
+    wavelength.play_tone(440, 100)
+    wavelength.play_tone(659, 150)
+
+    print("\n=== LOBBY READY ===")
+    print("PRESS ONBOARD button:")
+    print(" 1x -> Memory Game")
+    print(" 2x -> Rock Paper Scissors")
+    print(" 3x -> Wavelength")
     
     while True:
         try:
@@ -109,18 +126,17 @@ def main():
                 incoming_data = websocket.recv()
                 if incoming_data:
                     msg = json.loads(incoming_data)
+                    msg_type = msg.get("type")
                     
-                    if msg.get("type") == "PATTERN":
+                    if msg_type == "PATTERN":
                         patterns_array = msg.get("patterns")
                         start_level = msg.get("start_level", 1) 
                         print(f"\n[SERVER -> ESP32]: Downloaded {len(patterns_array)} levels starting at Level {start_level}.")
                         
                         print("\n[!] Disconnecting from server for offline gameplay...")
                         set_led((0, 0, 50)) 
-                        try:
-                            websocket.close()
-                        except:
-                            pass
+                        try: websocket.close()
+                        except: pass
                         
                         results_log = memory.play_simon_game(patterns_array, start_level)
                         
@@ -136,9 +152,78 @@ def main():
                         print(f"--> Uploaded batch results: {results_log}")
                         
                         if "loss" not in results_log:
-                            print("\n[!] Perfect score! Waiting for the next batch of levels from the server...")
+                            print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+
+                    elif msg_type == "WAVELENGTH_ROLE":
+                        role = msg.get("role")
+                        
+                        if role == "host":
+                            words_list = msg.get("words")
+                            set_led((50, 0, 50)) # Purple for Host
+                            
+                            try: websocket.close() 
+                            except: pass 
+                            
+                            word_idx, target_score = wavelength.host_offline_phase(words_list, btn)
+                            
+                            websocket = connect_to_server()
+                            websocket.send(json.dumps({
+                                "type": "HOST_SUBMIT",
+                                "device_id": DEVICE_NAME,
+                                "word_index": word_idx,
+                                "score": target_score
+                            }))
+                            print("\n[+] Host data submitted! Watch the guessers lock in.")
+                            
+                        elif role == "player_wait":
+                            set_led((0, 0, 50)) # Blue for Waiting
+                            print("\n<<< Waiting for HOST to select word and value... >>>")
+                            
+                            try: websocket.close() 
+                            except: pass 
+                            
+                            time.sleep(3) 
+                            
+                            websocket = connect_to_server()
+                            websocket.send(json.dumps({
+                                "type": "GAME_SELECT",
+                                "device_id": DEVICE_NAME,
+                                "game": "wavelength"
+                            }))
+                            
+                        elif role == "player_guess":
+                            word_to_guess = msg.get("word")
+                            set_led((50, 50, 0)) # Yellow for Guesser
+                            
+                            try: websocket.close() 
+                            except: pass 
+                            
+                            guess_score = wavelength.player_offline_phase(word_to_guess)
+                            
+                            websocket = connect_to_server()
+                            websocket.send(json.dumps({
+                                "type": "PLAYER_GUESS",
+                                "device_id": DEVICE_NAME,
+                                "score": guess_score
+                            }))
+                            print("\n[+] Guess submitted! Waiting for round results...")
+
+                    elif msg_type == "ROUND_RESULTS":
+                        # Play a big fanfare when results arrive
+                        wavelength.sound_lock_in()
+                        
+                        print("\n==========================")
+                        print(" +++ ROUND COMPLETE +++")
+                        print("==========================")
+                        print(f"Target Score: {msg.get('target')}%")
+                        print("Guesses:")
+                        for device, score in msg.get('guesses').items():
+                            print(f"  {device}: {score}%")
+                        print("==========================\n")
+                        print("LOBBY READY: Click onboard to start next round.")
+                        set_led((0, 50, 0))
 
             except OSError:
                 pass 
@@ -149,6 +234,7 @@ def main():
                 if time.ticks_diff(current_time, last_click_time) > 50:
                     click_count += 1
                     last_click_time = current_time
+                    wavelength.sound_click() # Speaker click feedback in Lobby!
                     print(f"Click! (Count: {click_count})")
             last_btn_state = current_btn_state
             
@@ -188,6 +274,8 @@ def main():
 
         except Exception as master_e:
             print(f"\n[!] Network connection dropped: {master_e}. Reconnecting...")
+            try: websocket.close()
+            except: pass
             websocket = connect_to_server()
 
 if __name__ == "__main__":
