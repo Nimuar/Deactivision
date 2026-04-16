@@ -223,6 +223,10 @@ def main():
                             print(f"  {device}: {score}%")
                         print("==========================\n")
                         print("LOBBY READY: Click onboard to start next round.")
+                        print("PRESS ONBOARD button:")
+                        print(" 1x -> Memory Game")
+                        print(" 2x -> Rock Paper Scissors")
+                        print(" 3x -> Wavelength")
                         set_led((0, 50, 0))
 
             except OSError:
