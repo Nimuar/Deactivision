@@ -1,0 +1,110 @@
+import minigames as mg
+import time
+
+# --- GAME CONSTANTS ---
+BLINK_DURATION = 0.8  
+BLINK_PAUSE = 0.5     
+GAME_SPEED = 1.0      
+TIMEOUT_MS = 15000    
+
+def play_pattern_sequence(pattern):
+    print("\nEyes on the board!")
+    for i in range(4, 0, -1):
+        print(f"Sequence starting in {i}...")
+        time.sleep(1.0)
+        
+    print("Playing pattern...")
+    print(f"Cheat sheet (for testing): {pattern}")
+    
+    for color in pattern:
+        mg.set_led(color)
+        time.sleep(BLINK_DURATION)
+        mg.clear_led()
+        time.sleep(BLINK_PAUSE)
+        
+    time.sleep(GAME_SPEED)
+
+def get_user_input(expected_pattern):
+    print(f"\n>>> Your turn! Press the buttons in order... (You have {TIMEOUT_MS//1000} seconds) <<<")
+    user_pattern = []
+    
+    prev_red_cnt = mg.red_button_cnt
+    prev_green_cnt = mg.green_button_cnt
+    prev_yellow_cnt = mg.yellow_button_cnt
+    
+    timeout_start = time.ticks_ms()
+    
+    while len(user_pattern) < len(expected_pattern):
+        current_time = time.ticks_ms()
+        
+        if time.ticks_diff(current_time, timeout_start) > TIMEOUT_MS:
+            print("Timeout! No input received.")
+            return None
+        
+        pressed_color = None
+        
+        if mg.red_button_cnt > prev_red_cnt:
+            pressed_color = "red"
+            prev_red_cnt = mg.red_button_cnt
+        elif mg.green_button_cnt > prev_green_cnt:
+            pressed_color = "green"
+            prev_green_cnt = mg.green_button_cnt
+        elif mg.yellow_button_cnt > prev_yellow_cnt:
+            pressed_color = "yellow"
+            prev_yellow_cnt = mg.yellow_button_cnt
+
+        if pressed_color:
+            print(f"{pressed_color.upper()} button pressed!")
+            user_pattern.append(pressed_color)
+            
+            mg.set_led(pressed_color)
+            time.sleep(0.4) 
+            mg.clear_led()
+            
+            if user_pattern[-1] != expected_pattern[len(user_pattern) - 1]:
+                print(f"Wrong button! Expected {expected_pattern[len(user_pattern) - 1].upper()}")
+                return None
+            
+            timeout_start = time.ticks_ms()
+        
+        time.sleep(0.01)  
+    
+    return user_pattern
+
+
+def play_simon_game(server_patterns_array, start_level=1):
+    """
+    Takes an array of arrays representing the patterns, and the starting level number.
+    Returns a list of strings representing the results per level: ["win", "win", "loss"]
+    """
+    print(f"\n=== Starting Offline-Batched Simon Game (Levels {start_level} - {start_level + len(server_patterns_array) - 1}) ===")
+    results_log = []
+    
+    for idx, level_pattern in enumerate(server_patterns_array):
+        # Calculate the actual continuous level number
+        level = start_level + idx 
+        print(f"\n--- Level {level} ---")
+        
+        play_pattern_sequence(level_pattern)
+        
+        user_input = get_user_input(level_pattern)
+        
+        if user_input is None:
+            print("\nGame Over - Wrong input or Timeout!")
+            for _ in range(3):
+                mg.set_led("red")
+                time.sleep(0.5)
+                mg.clear_led()
+                time.sleep(0.5)
+            results_log.append("loss")
+            return results_log 
+            
+        print(f"Correct! Level {level} complete!")
+        results_log.append("win")
+        time.sleep(1.0)
+    
+    print(f"\nSuccess! You completed up to Level {start_level + len(server_patterns_array) - 1}!")
+    mg.set_led("all")
+    time.sleep(2.0)
+    mg.clear_led()
+    return results_log
