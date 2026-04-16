@@ -17,7 +17,7 @@ DEVICE_NAME = f"PLAYER_{short_id}"
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk"
 SERVER_IP = "192.168.1.69" 
-SERVER_URL = f"ws://eleven-shoes-begin.loca.lt/ws/{DEVICE_NAME}"
+SERVER_URL = f"wss://minigames-render.onrender.com/ws/{DEVICE_NAME}"
 
 print("====================================")
 print(f" +++ THIS BOARD IS: {DEVICE_NAME} +++")
@@ -155,6 +155,10 @@ def main():
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+                            print("PRESS ONBOARD button:")
+                            print(" 1x -> Memory Game")
+                            print(" 2x -> Rock Paper Scissors")
+                            print(" 3x -> Wavelength")
 
                     elif msg_type == "WAVELENGTH_ROLE":
                         role = msg.get("role")
@@ -223,6 +227,11 @@ def main():
                             print(f"  {device}: {score}%")
                         print("==========================\n")
                         print("LOBBY READY: Click onboard to start next round.")
+                        print("\n[!] Game Over. Listening for new game selection...")
+                        print("PRESS ONBOARD button:")
+                        print(" 1x -> Memory Game")
+                        print(" 2x -> Rock Paper Scissors")
+                        print(" 3x -> Wavelength")
                         set_led((0, 50, 0))
 
             except OSError:
