@@ -248,9 +248,9 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 print(f"\n[SERVER] [RESULTS] Received score from {device}: {score}")
                 
                 old_pattern = game_states.get(device, [])
-                total_levels = len(old_pattern) if old_pattern else 0
+                expected_final_level = len(old_pattern)
                 
-                if score < LED_MEMORY_BATCH_SIZE:
+                if score < expected_final_level:
                     # Player failed before completing the batch
                     log_game_event("led_memory", device, "GAME_OVER", level=str(score), status="LOSS", details=f"Score: {score}")
                     if device in game_states:
