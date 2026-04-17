@@ -2,16 +2,16 @@ import minigames as mg
 import time
 
 # --- GAME CONSTANTS ---
-BLINK_DURATION = 0.8  
+BLINK_DURATION = 0.5 
 BLINK_PAUSE = 0.5     
-GAME_SPEED = 1.0      
+GAME_SPEED = 0.5    
 TIMEOUT_MS = 15000    
 
 def play_pattern_sequence(pattern):
     print("\nEyes on the board!")
-    for i in range(4, 0, -1):
-        print(f"Sequence starting in {i}...")
-        time.sleep(1.0)
+
+    print(f"Sequence starting...")
+    time.sleep(0.5)
         
     print("Playing pattern...")
     print(f"Cheat sheet (for testing): {pattern}")
@@ -75,10 +75,11 @@ def get_user_input(expected_pattern):
 def play_simon_game(server_patterns_array, start_level=1):
     """
     Takes an array of arrays representing the patterns, and the starting level number.
-    Returns a list of strings representing the results per level: ["win", "win", "loss"]
+    Returns the score as an integer representing the number of levels beaten.
+    Score starts at (start_level - 1) to account for previously completed levels.
     """
     print(f"\n=== Starting Offline-Batched Simon Game (Levels {start_level} - {start_level + len(server_patterns_array) - 1}) ===")
-    results_log = []
+    score = start_level - 1  # Score reflects total levels completed, not just this batch
     
     for idx, level_pattern in enumerate(server_patterns_array):
         # Calculate the actual continuous level number
@@ -96,15 +97,14 @@ def play_simon_game(server_patterns_array, start_level=1):
                 time.sleep(0.5)
                 mg.clear_led()
                 time.sleep(0.5)
-            results_log.append("loss")
-            return results_log 
+            return score
             
         print(f"Correct! Level {level} complete!")
-        results_log.append("win")
+        score += 1
         time.sleep(1.0)
     
     print(f"\nSuccess! You completed up to Level {start_level + len(server_patterns_array) - 1}!")
     mg.set_led("all")
     time.sleep(2.0)
     mg.clear_led()
-    return results_log
+    return score
