@@ -138,7 +138,7 @@ def main():
                         try: websocket.close()
                         except: pass
                         
-                        results_log = memory.play_simon_game(patterns_array, start_level)
+                        score = memory.play_simon_game(patterns_array, start_level)
                         
                         print("\n[!] Game finished. Reconnecting to upload results...")
                         websocket = connect_to_server()
@@ -146,12 +146,12 @@ def main():
                         payload = {
                             "type": "GAME_RESULTS",
                             "device_id": DEVICE_NAME,
-                            "results": results_log
+                            "score": score
                         }
                         websocket.send(json.dumps(payload))
-                        print(f"--> Uploaded batch results: {results_log}")
+                        print(f"--> Uploaded score: {score}")
                         
-                        if "loss" not in results_log:
+                        if score == len(patterns_array):
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
