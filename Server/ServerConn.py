@@ -82,6 +82,7 @@ except ImportError:
 # Import local game modules AFTER dependencies are cleared
 import memory 
 import wavelength 
+import rockpaperscissor
 # =========================================================
 
 def connect_to_server():
@@ -155,6 +156,10 @@ def main():
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+                    elif msg.get("type") == "RPS_READY":
+                        print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
+                        print("\n[!] RPS session ended. Listening for new game selection...")
 
                     elif msg_type == "WAVELENGTH_ROLE":
                         role = msg.get("role")

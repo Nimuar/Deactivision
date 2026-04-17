@@ -1,5 +1,6 @@
 import machine
 from machine import Pin, ADC, PWM, Timer
+from time import sleep
 
 ##############GPIO SETUP##############
 led_board = Pin(13, Pin.OUT)
@@ -26,7 +27,7 @@ wavelength_timer = Timer(2)
 wave_timeout = False
 
 pot = ADC(Pin(34, Pin.IN))
-pwm_speaker = PWM(Pin(32), freq=10, duty_u16=512) 
+pwm_speaker = PWM(Pin(32), freq=10, duty_u16=0) 
 
 game = "none"
 role = "none"
@@ -57,6 +58,21 @@ def clear_led():
         red_led.value(0)
         green_led.value(0)
         yellow_led.value(0)
+
+def beepSound(freq, duration):
+    pwm_speaker.freq(freq)
+    pwm_speaker.duty(512)
+    sleep(duration)
+    pwm_speaker.duty(0)
+
+def lcd_print(text):
+    """Print text to LCD"""
+    from lcd_class import I2cLcd
+    from machine import I2C, Pin
+    i2c = I2C(0, scl=Pin(20), sda=Pin(22), freq=400000)
+    lcd = I2cLcd(i2c, 0x27, 2, 16)
+    lcd.clear()
+    lcd.lcd_print(text[:16])
 
 
 ###########INTERRUPTS################   
@@ -152,7 +168,10 @@ def Wavelength_lobby():
 
 ##########ROCK PAPER SCISSORS##########
 
-
+def RPS_lobby(websocket=None):
+    """Rock Paper Scissors game lobby - handles role assignment"""
+    import rockpaperscissor
+    rockpaperscissor.RPS_lobby(websocket)
 
 
 ##########MAIN LOOP##########
@@ -169,3 +188,4 @@ while True:
     elif game == "rock paper scissors":
         RPS_lobby()
 '''
+
