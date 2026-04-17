@@ -8,9 +8,9 @@ red_led = Pin(12, Pin.OUT)
 green_led = Pin(27, Pin.OUT)
 yellow_led = Pin(33, Pin.OUT)
 
-red_button = Pin(19, Pin.IN, Pin.PULL_UP)
-green_button = Pin(5, Pin.IN, Pin.PULL_UP)
-yellow_button = Pin(4, Pin.IN, Pin.PULL_UP)
+red_button = Pin(19, Pin.IN, Pin.PULL_DOWN)
+green_button = Pin(5, Pin.IN, Pin.PULL_DOWN)
+yellow_button = Pin(4, Pin.IN, Pin.PULL_DOWN)
 red_button_pressed = False
 green_button_pressed = False
 yellow_button_pressed = False
