@@ -6,6 +6,17 @@ import csv
 import os
 import asyncio
 from datetime import datetime
+import logging
+import sys
+
+# --- LOGGING SETUP FOR RENDER ---
+# This forces logs to stream directly to Render's console instantly
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("minigames_server")
 
 app = FastAPI()
 
@@ -20,19 +31,22 @@ os.makedirs(DATA_DIR, exist_ok=True)
 def log_game_event(game_name: str, device_id: str, event_type: str, level: str = "N/A", status: str = "N/A", details: str = ""):
     filename = os.path.join(DATA_DIR, f"{game_name}.csv")
     file_exists = os.path.isfile(filename)
-    with open(filename, mode='a', newline='') as csvfile:
-        fieldnames = ['Timestamp', 'Device ID', 'Event Type', 'Level Reached', 'Status', 'Details']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow({
-            'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'Device ID': device_id,
-            'Event Type': event_type,
-            'Level Reached': level,
-            'Status': status,
-            'Details': details
-        })
+    try:
+        with open(filename, mode='a', newline='') as csvfile:
+            fieldnames = ['Timestamp', 'Device ID', 'Event Type', 'Level Reached', 'Status', 'Details']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow({
+                'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'Device ID': device_id,
+                'Event Type': event_type,
+                'Level Reached': level,
+                'Status': status,
+                'Details': details
+            })
+    except Exception as e:
+        logger.error(f"Failed to write to CSV {filename}: {e}")
 
 class ConnectionManager:
     def __init__(self):
@@ -41,12 +55,12 @@ class ConnectionManager:
     async def connect(self, device_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[device_id] = websocket
-        print(f"[SERVER] [+] Node Connected: {device_id}")
+        logger.info(f"[+] Node Connected: {device_id}")
 
     def disconnect(self, device_id: str):
         if device_id in self.active_connections:
             del self.active_connections[device_id]
-            print(f"[SERVER] [-] Node Disconnected: {device_id}")
+            logger.info(f"[-] Node Disconnected: {device_id}")
 
 manager = ConnectionManager()
 
@@ -76,7 +90,7 @@ wavelength_state = {
 
 async def process_wavelength_round_end():
     """Forces the round to end, broadcasts results, and cycles the host."""
-    print("\n[SERVER] Round Complete (All Guesses In or Timeout Reached).")
+    logger.info("Round Complete (All Guesses In or Timeout Reached).")
     
     # Save a backup of the results just in case a slow player guesses late
     wavelength_state["last_target"] = wavelength_state["target_score"]
@@ -93,8 +107,8 @@ async def process_wavelength_round_end():
         if dev_id in wavelength_state["registered_players"]:
             try:
                 await ws.send_text(payload)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to send to {dev_id}: {e}")
                 
     # LOGGING: Final Round Results
     log_game_event("wavelength", "System", "ROUND_END", level=wavelength_state["current_word"], status="COMPLETED", details=f"Target: {wavelength_state['target_score']}%, Guesses: {wavelength_state['guesses']}")
@@ -111,13 +125,14 @@ async def process_wavelength_round_end():
     wavelength_state["timer_task"] = None
     
     if total_players > 0:
-        print(f"[SERVER] Round reset. Next host is: {wavelength_state['registered_players'][wavelength_state['host_index']]}\n")
+        next_host = wavelength_state['registered_players'][wavelength_state['host_index']]
+        logger.info(f"Round reset. Next host is: {next_host}")
 
 async def wavelength_timeout_coroutine():
     """Background timer that counts to 30 and triggers the end of the round."""
     await asyncio.sleep(30)
     if wavelength_state["status"] == "guessing":
-        print("\n[SERVER] 30 seconds elapsed! Forcing round to end.")
+        logger.info("30 seconds elapsed! Forcing round to end.")
         await process_wavelength_round_end()
 
 @app.websocket("/ws/{device_id}")
@@ -135,6 +150,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             # ---------------------------------------------------------
             if msg_type == "GAME_SELECT":
                 game_selected = message.get("game")
+                logger.info(f"{device_id} selected: {game_selected}")
                 
                 # --- MEMORY GAME LOGIC ---
                 if game_selected == "led_memory":
@@ -152,7 +168,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 elif game_selected == "wavelength":
                     if device_id not in wavelength_state["registered_players"]:
                         wavelength_state["registered_players"].append(device_id)
-                        print(f"[SERVER] {device_id} joined Wavelength. Total players: {len(wavelength_state['registered_players'])}")
+                        logger.info(f"{device_id} joined Wavelength. Total players: {len(wavelength_state['registered_players'])}")
                         
                         log_game_event("wavelength", device_id, "JOIN_LOBBY", status="CONNECTED")
 
@@ -168,7 +184,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                             "role": "host",
                             "words": wavelength_state["word_options"]
                         }))
-                        print(f"[SERVER] Sent Host options to {device_id}.")
+                        logger.info(f"Sent Host options to {device_id}.")
                     
                     else:
                         if wavelength_state["status"] == "guessing":
@@ -196,8 +212,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 wavelength_state["status"] = "guessing"
                 wavelength_state["guesses"] = {} 
                 
-                print(f"\n[SERVER] HOST LOCKED IN! Word: '{selected_word}' | Target: {target_score}%")
-                print("[SERVER] 30-Second Guessing Timer Started!")
+                logger.info(f"HOST LOCKED IN! Word: '{selected_word}' | Target: {target_score}%")
+                logger.info("30-Second Guessing Timer Started!")
                 
                 log_game_event("wavelength", device_id, "HOST_LOCKED_IN", level=selected_word, status="PENDING_GUESSES", details=f"Target: {target_score}%")
                 
@@ -212,7 +228,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             elif msg_type == "PLAYER_GUESS":
                 # ANTI-STUCK: If the round already ended due to timeout, unstick the late player
                 if wavelength_state["status"] != "guessing":
-                    print(f"[SERVER] Late guess from {device_id} ignored. Sending old results to unstick board.")
+                    logger.info(f"Late guess from {device_id} ignored. Sending old results to unstick board.")
                     await websocket.send_text(json.dumps({
                         "type": "ROUND_RESULTS",
                         "target": wavelength_state["last_target"],
@@ -222,7 +238,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     
                 guess_score = message.get("score")
                 wavelength_state["guesses"][device_id] = guess_score
-                print(f"[SERVER] Received guess from {device_id}: {guess_score}%")
+                logger.info(f"Received guess from {device_id}: {guess_score}%")
                 
                 log_game_event("wavelength", device_id, "PLAYER_GUESSED", level=wavelength_state["current_word"], status="GUESSED", details=f"Guess: {guess_score}%")
                 
@@ -230,7 +246,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 
                 # Check if all players (except the host) have guessed
                 if len(wavelength_state["guesses"]) >= (total_players - 1) and total_players > 1:
-                    print("\n[SERVER] ALL GUESSES IN! Ending round early.")
+                    logger.info("ALL GUESSES IN! Ending round early.")
                     
                     # Cancel the 30-second timeout since everyone was fast enough
                     if wavelength_state["timer_task"]:
@@ -242,10 +258,17 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             # 4. MEMORY GAME RESULTS
             # ---------------------------------------------------------
             elif msg_type == "GAME_RESULTS":
-                score = message.get("score", 0)
+                raw_score = message.get("score", 0)
                 device = message.get("device_id")
                 
-                print(f"\n[SERVER] [RESULTS] Received score from {device}: {score}")
+                # --- NEW: Crash-proof the score parsing ---
+                try:
+                    score = int(raw_score)
+                except (TypeError, ValueError):
+                    logger.error(f"Invalid score format from {device}: {raw_score}. Defaulting to 0.")
+                    score = 0
+                
+                logger.info(f"[RESULTS] Received score from {device}: {score}")
                 
                 old_pattern = game_states.get(device, [])
                 expected_final_level = len(old_pattern)
@@ -273,6 +296,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     }))
 
     except WebSocketDisconnect:
+        logger.info(f"WebSocket closed by client: {device_id}")
+        manager.disconnect(device_id)
+    except Exception as e:
+        logger.error(f"Unexpected error with client {device_id}: {e}", exc_info=True)
         manager.disconnect(device_id)
 
 if __name__ == "__main__":
@@ -281,7 +308,8 @@ if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 8000)) 
 
-    print("\n" + "="*55)
-    print(f"  MINIGAMES HOST SERVER INITIALIZING ON PORT {port}...")
-    print("="*55 + "\n")
+    logger.info("="*55)
+    logger.info(f"  MINIGAMES HOST SERVER INITIALIZING ON PORT {port}...")
+    logger.info("="*55)
+    
     uvicorn.run(app, host="0.0.0.0", port=port)
