@@ -82,6 +82,7 @@ except ImportError:
 # Import local game modules AFTER dependencies are cleared
 import memory 
 import wavelength 
+import rockpaperscissor
 # =========================================================
 
 def connect_to_server():
@@ -138,7 +139,7 @@ def main():
                         try: websocket.close()
                         except: pass
                         
-                        results_log = memory.play_simon_game(patterns_array, start_level)
+                        score = memory.play_simon_game(patterns_array, start_level)
                         
                         print("\n[!] Game finished. Reconnecting to upload results...")
                         websocket = connect_to_server()
@@ -146,15 +147,19 @@ def main():
                         payload = {
                             "type": "GAME_RESULTS",
                             "device_id": DEVICE_NAME,
-                            "results": results_log
+                            "score": score
                         }
                         websocket.send(json.dumps(payload))
-                        print(f"--> Uploaded batch results: {results_log}")
+                        print(f"--> Uploaded score: {score}")
                         
-                        if "loss" not in results_log:
+                        if score == len(patterns_array):
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+                    elif msg.get("type") == "RPS_READY":
+                        print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
+                        print("\n[!] RPS session ended. Listening for new game selection...")
 
                     elif msg_type == "WAVELENGTH_ROLE":
                         role = msg.get("role")
@@ -223,6 +228,10 @@ def main():
                             print(f"  {device}: {score}%")
                         print("==========================\n")
                         print("LOBBY READY: Click onboard to start next round.")
+                        print("PRESS ONBOARD button:")
+                        print(" 1x -> Memory Game")
+                        print(" 2x -> Rock Paper Scissors")
+                        print(" 3x -> Wavelength")
                         set_led((0, 50, 0))
 
             except OSError:
