@@ -156,6 +156,29 @@ def main():
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
+                    
+                    elif msg_type == "MEMORY_RESULTS":
+                        # Memory game batch results (multiplayer)
+                        winner = msg.get("winner")
+                        winner_score = msg.get("winner_score")
+                        all_scores = msg.get("all_scores")
+                        
+                        print("\n==========================")
+                        print(" +++ MEMORY GAME COMPLETE +++")
+                        print("==========================")
+                        print(f"Winner: {winner}")
+                        print(f"Winner Score: {winner_score}")
+                        print("All Scores:")
+                        for player, score in all_scores.items():
+                            marker = " (YOU)" if player == DEVICE_NAME else ""
+                            print(f"  {player}: {score}{marker}")
+                        print("==========================\n")
+                        print("LOBBY READY: Click onboard to start next game.")
+                        print("PRESS ONBOARD button:")
+                        print(" 1x -> Memory Game")
+                        print(" 2x -> Rock Paper Scissors")
+                        print(" 3x -> Wavelength")
+                        set_led((0, 50, 0))
                     elif msg.get("type") == "RPS_READY":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
