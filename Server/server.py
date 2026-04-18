@@ -64,6 +64,107 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+rps_waiting_queue = []
+rps_games = {}
+rps_player_game = {}
+
+async def safe_send(device_id: str, payload: dict):
+    ws = manager.active_connections.get(device_id)
+    if not ws:
+        return False
+    try:
+        await ws.send_text(json.dumps(payload))
+        return True
+    except Exception:
+        return False
+
+def build_rps_game_id():
+    return f"rps_{random.randint(1000, 9999)}"
+
+def cleanup_rps_game(game_id: str):
+    game = rps_games.pop(game_id, None)
+    if not game:
+        return
+    for player in game["players"]:
+        if rps_player_game.get(player) == game_id:
+            del rps_player_game[player]
+
+def resolve_rps(selection_a: str, selection_b: str):
+    if selection_a == "forfeit" and selection_b == "forfeit":
+        return "tie", "tie"
+    if selection_a == "forfeit":
+        return "lose", "win"
+    if selection_b == "forfeit":
+        return "win", "lose"
+
+    if selection_a == selection_b:
+        return "tie", "tie"
+
+    wins_against = {
+        "rock": "scissors",
+        "paper": "rock",
+        "scissors": "paper",
+    }
+    if wins_against.get(selection_a) == selection_b:
+        return "win", "lose"
+    return "lose", "win"
+
+async def try_start_rps_match():
+    while len(rps_waiting_queue) >= 2:
+        p1 = rps_waiting_queue.pop(0)
+        p2 = rps_waiting_queue.pop(0)
+
+        if p1 not in manager.active_connections or p2 not in manager.active_connections:
+            continue
+
+        game_id = build_rps_game_id()
+        rps_games[game_id] = {
+            "players": [p1, p2],
+            "selections": {}
+        }
+        rps_player_game[p1] = game_id
+        rps_player_game[p2] = game_id
+
+        await safe_send(p1, {
+            "type": "RPS_READY",
+            "game_id": game_id,
+            "message": "Opponent found! Start round.",
+            "opponent": p2
+        })
+        await safe_send(p2, {
+            "type": "RPS_READY",
+            "game_id": game_id,
+            "message": "Opponent found! Start round.",
+            "opponent": p1
+        })
+
+        log_game_event("rps", "System", "MATCH_START", level=game_id, status="READY", details=f"{p1} vs {p2}")
+
+async def handle_rps_disconnect(device_id: str):
+    if device_id in rps_waiting_queue:
+        rps_waiting_queue.remove(device_id)
+
+    game_id = rps_player_game.get(device_id)
+    if not game_id:
+        return
+
+    game = rps_games.get(game_id)
+    if not game:
+        rps_player_game.pop(device_id, None)
+        return
+
+    players = game["players"]
+    opponent = players[1] if players[0] == device_id else players[0]
+
+    await safe_send(opponent, {
+        "type": "RPS_RESULT",
+        "result": "win",
+        "game_id": game_id,
+        "opponent_selection": "disconnect"
+    })
+    log_game_event("rps", device_id, "DISCONNECT", level=game_id, status="LOSS", details=f"Opponent {opponent} awarded win")
+    cleanup_rps_game(game_id)
+
 # --- GAME STATES ---
 game_states = {} 
 
@@ -163,6 +264,38 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     await websocket.send_text(json.dumps({
                         "type": "PATTERN", "patterns": patterns, "start_level": 1
                     }))
+                    
+                elif game_selected == "rps":
+                    if device_id in rps_player_game:
+                        game_id = rps_player_game[device_id]
+                        game = rps_games.get(game_id)
+                        if game:
+                            opponent = game["players"][1] if game["players"][0] == device_id else game["players"][0]
+                            await websocket.send_text(json.dumps({
+                                "type": "RPS_READY",
+                                "game_id": game_id,
+                                "message": "Rejoined active match.",
+                                "opponent": opponent
+                            }))
+                        else:
+                            rps_player_game.pop(device_id, None)
+                            await websocket.send_text(json.dumps({
+                                "type": "RPS_WAITING",
+                                "message": "Waiting for opponent..."
+                            }))
+                    elif device_id in rps_waiting_queue:
+                        await websocket.send_text(json.dumps({
+                            "type": "RPS_WAITING",
+                            "message": "Waiting for opponent..."
+                        }))
+                    else:
+                        rps_waiting_queue.append(device_id)
+                        log_game_event("rps", device_id, "JOIN_QUEUE", status="WAITING")
+                        await websocket.send_text(json.dumps({
+                            "type": "RPS_WAITING",
+                            "message": "Waiting for opponent..."
+                        }))
+                        await try_start_rps_match()
                 
                 # --- WAVELENGTH GAME LOGIC ---
                 elif game_selected == "wavelength":
@@ -198,6 +331,51 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                                 "type": "WAVELENGTH_ROLE",
                                 "role": "player_wait"
                             }))
+                            
+            elif msg_type == "RPS_SELECTION":
+                game_id = rps_player_game.get(device_id)
+                if not game_id or game_id not in rps_games:
+                    await websocket.send_text(json.dumps({
+                        "type": "RPS_WAITING",
+                        "message": "Waiting for opponent..."
+                    }))
+                    continue
+
+                game = rps_games[game_id]
+                players = game["players"]
+                opponent = players[1] if players[0] == device_id else players[0]
+                selection = message.get("selection", "forfeit")
+
+                game["selections"][device_id] = selection
+                log_game_event("rps", device_id, "SELECTION", level=game_id, status="LOCKED_IN", details=selection)
+
+                if opponent not in game["selections"]:
+                    await websocket.send_text(json.dumps({
+                        "type": "RPS_WAITING",
+                        "message": "Selection received. Waiting for opponent..."
+                    }))
+                    continue
+
+                p1, p2 = players
+                sel1 = game["selections"][p1]
+                sel2 = game["selections"][p2]
+                res1, res2 = resolve_rps(sel1, sel2)
+
+                await safe_send(p1, {
+                    "type": "RPS_RESULT",
+                    "result": res1,
+                    "game_id": game_id,
+                    "opponent_selection": sel2
+                })
+                await safe_send(p2, {
+                    "type": "RPS_RESULT",
+                    "result": res2,
+                    "game_id": game_id,
+                    "opponent_selection": sel1
+                })
+
+                log_game_event("rps", "System", "ROUND_END", level=game_id, status=f"{p1}:{res1},{p2}:{res2}", details=f"{p1}={sel1}, {p2}={sel2}")
+                cleanup_rps_game(game_id)
 
             # ---------------------------------------------------------
             # 2. WAVELENGTH HOST UPLOADS TARGET
