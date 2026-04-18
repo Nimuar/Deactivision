@@ -264,7 +264,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     await websocket.send_text(json.dumps({
                         "type": "PATTERN", "patterns": patterns, "start_level": 1
                     }))
-                    
+                
+                # --- RPS GAME LOGIC ---
                 elif game_selected == "rps":
                     if device_id in rps_player_game:
                         game_id = rps_player_game[device_id]
@@ -331,7 +332,9 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                                 "type": "WAVELENGTH_ROLE",
                                 "role": "player_wait"
                             }))
-                            
+            # ---------------------------------------------------------
+            # 2. RPS COLLECTS SELECTION FROM PLAYERS
+            # ---------------------------------------------------------                
             elif msg_type == "RPS_SELECTION":
                 game_id = rps_player_game.get(device_id)
                 if not game_id or game_id not in rps_games:
