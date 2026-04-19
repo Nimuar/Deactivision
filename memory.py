@@ -72,13 +72,25 @@ def get_user_input(expected_pattern):
     return user_pattern
 
 
-def play_simon_game(server_patterns_array, start_level=1):
+def play_simon_game(server_patterns_array, start_level=1, batch=1, multiplayer=False, num_players=1):
     """
     Takes an array of arrays representing the patterns, and the starting level number.
     Returns the score as an integer representing the number of levels beaten.
     Score starts at (start_level - 1) to account for previously completed levels.
+    
+    Args:
+        server_patterns_array: List of color patterns from server
+        start_level: Starting level number (default 1)
+        batch: Current batch number for display (default 1)
+        multiplayer: Whether this is a multiplayer game (default False)
+        num_players: Number of players in the session (default 1)
     """
     print(f"\n=== Starting Offline-Batched Simon Game (Levels {start_level} - {start_level + len(server_patterns_array) - 1}) ===")
+    
+    if multiplayer and num_players > 1:
+        print(f"\n🎮 MULTIPLAYER MODE - Batch {batch}")
+        print(f"You are competing against {num_players - 1} other player(s)!")
+        print("Fastest to complete wins!\n")
     score = start_level - 1  # Score reflects total levels completed, not just this batch
     
     for idx, level_pattern in enumerate(server_patterns_array):

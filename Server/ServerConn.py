@@ -131,15 +131,21 @@ def main():
                     
                     if msg_type == "PATTERN":
                         patterns_array = msg.get("patterns")
-                        start_level = msg.get("start_level", 1) 
+                        start_level = msg.get("start_level", 1)
+                        batch = msg.get("batch", 1)
+                        multiplayer = msg.get("multiplayer", False)
+                        num_players = msg.get("num_players", 1)
+                        
                         print(f"\n[SERVER -> ESP32]: Downloaded {len(patterns_array)} levels starting at Level {start_level}.")
+                        if multiplayer and num_players > 1:
+                            print(f"[MULTIPLAYER] Batch {batch} - Competing against {num_players - 1} other player(s)!")
                         
                         print("\n[!] Disconnecting from server for offline gameplay...")
                         set_led((0, 0, 50)) 
                         try: websocket.close()
                         except: pass
                         
-                        score = memory.play_simon_game(patterns_array, start_level)
+                        score = memory.play_simon_game(patterns_array, start_level, batch, multiplayer, num_players)
                         
                         print("\n[!] Game finished. Reconnecting to upload results...")
                         websocket = connect_to_server()
@@ -152,10 +158,18 @@ def main():
                         websocket.send(json.dumps(payload))
                         print(f"--> Uploaded score: {score}")
                         
-                        if score == len(patterns_array):
-                            print("\n[!] Perfect score! Waiting for next batch...")
+                        if multiplayer and num_players > 1:
+                            print("\n[!] Waiting for other players to finish and submit scores...")
+                            # Show we're waiting for round results
+                            if score == len(patterns_array):
+                                set_led((0, 50, 50))  # Cyan = completed all levels, waiting for results
+                            else:
+                                set_led((50, 50, 0))  # Yellow = failed, but waiting for round results
                         else:
-                            print("\n[!] Game Over. Listening for new game selection...")
+                            if score == len(patterns_array):
+                                print("\n[!] Perfect score! Waiting for next batch...")
+                            else:
+                                print("\n[!] Game Over. Listening for new game selection...")
                     elif msg.get("type") == "RPS_READY":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
@@ -226,6 +240,34 @@ def main():
                         print("Guesses:")
                         for device, score in msg.get('guesses').items():
                             print(f"  {device}: {score}%")
+                        print("==========================\n")
+                        print("LOBBY READY: Click onboard to start next round.")
+                        print("PRESS ONBOARD button:")
+                        print(" 1x -> Memory Game")
+                        print(" 2x -> Rock Paper Scissors")
+                        print(" 3x -> Wavelength")
+                        set_led((0, 50, 0))
+
+                    elif msg_type == "MEMORY_ROUND_RESULTS":
+                        # Play a fanfare when results arrive
+                        wavelength.sound_lock_in()
+                        
+                        winner = msg.get('winner')
+                        scores = msg.get('scores', {})
+                        batch = msg.get('batch', 1)
+                        
+                        print("\n==========================")
+                        print(" +++ MEMORY ROUND COMPLETE +++")
+                        print("==========================")
+                        print(f"Batch {batch} - Scores:")
+                        print()
+                        
+                        for device, score in scores.items():
+                            if device == winner:
+                                print(f"  🏆 {device}: {score} levels (WINNER!)")
+                            else:
+                                print(f"     {device}: {score} levels")
+                        
                         print("==========================\n")
                         print("LOBBY READY: Click onboard to start next round.")
                         print("PRESS ONBOARD button:")

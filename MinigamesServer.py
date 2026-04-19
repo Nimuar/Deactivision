@@ -74,6 +74,17 @@ wavelength_state = {
     "last_guesses": {}
 }
 
+memory_state = {
+    "status": "lobby",
+    "registered_players": [],
+    "host_index": 0,
+    "current_batch": 1,
+    "base_pattern": [],
+    "player_scores": {},
+    "timer_task": None,
+    "last_scores": {}
+}
+
 async def process_wavelength_round_end():
     """Forces the round to end, broadcasts results, and cycles the host."""
     print("\n[SERVER] Round Complete (All Guesses In or Timeout Reached).")
@@ -120,6 +131,56 @@ async def wavelength_timeout_coroutine():
         print("\n[SERVER] 30 seconds elapsed! Forcing round to end.")
         await process_wavelength_round_end()
 
+async def process_memory_round_end():
+    """Compares all player scores and determines the winner."""
+    print("\n[SERVER] Memory Round Complete (All Scores In or Timeout Reached).")
+    
+    # Save a backup of the results
+    memory_state["last_scores"] = memory_state["player_scores"].copy()
+    
+    # Determine the winner
+    if memory_state["player_scores"]:
+        winner_id = max(memory_state["player_scores"], key=memory_state["player_scores"].get)
+        winning_score = memory_state["player_scores"][winner_id]
+        
+        print(f"[SERVER] Round Winner: {winner_id} with score {winning_score}")
+    else:
+        winner_id = None
+        winning_score = 0
+        print(f"[SERVER] No scores submitted!")
+    
+    # Broadcast Results to everyone currently connected
+    payload = json.dumps({
+        "type": "MEMORY_ROUND_RESULTS",
+        "scores": memory_state["player_scores"],
+        "winner": winner_id,
+        "winning_score": winning_score,
+        "batch": memory_state["current_batch"]
+    })
+    
+    for dev_id, ws in manager.active_connections.items():
+        if dev_id in memory_state["registered_players"]:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                pass
+    
+    # LOGGING: Final Round Results
+    log_game_event("led_memory", "System", "ROUND_END", level=str(memory_state["current_batch"]), status="COMPLETED", details=f"Winner: {winner_id}, Scores: {memory_state['player_scores']}")
+    
+    # Reset for next round
+    memory_state["status"] = "lobby"
+    memory_state["current_batch"] += 1
+    memory_state["player_scores"] = {}
+    memory_state["timer_task"] = None
+
+async def memory_timeout_coroutine():
+    """Background timer that counts to 60 seconds for players to complete and submit the memory game."""
+    await asyncio.sleep(60)
+    if memory_state["status"] == "playing":
+        print("\n[SERVER] 60 seconds elapsed! Forcing round to end.")
+        await process_memory_round_end()
+
 @app.websocket("/ws/{device_id}")
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
     await manager.connect(device_id, websocket)
@@ -138,14 +199,37 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 
                 # --- MEMORY GAME LOGIC ---
                 if game_selected == "led_memory":
-                    base_pattern = [random.choice(["red", "green", "yellow"]) for _ in range(LED_MEMORY_BATCH_SIZE)]
-                    game_states[device_id] = base_pattern 
-                    patterns = [base_pattern[:i+1] for i in range(LED_MEMORY_BATCH_SIZE)]
+                    # Register player to memory game lobby if not already registered
+                    if device_id not in memory_state["registered_players"]:
+                        memory_state["registered_players"].append(device_id)
+                        print(f"[SERVER] {device_id} joined Memory Game. Total players: {len(memory_state['registered_players'])}")
+                        
+                        log_game_event("led_memory", device_id, "JOIN_LOBBY", status="CONNECTED")
                     
-                    log_game_event("led_memory", device_id, "GAME_START", level="1-10", status="PENDING")
+                    # Generate base pattern for the batch
+                    if memory_state["status"] == "lobby":
+                        memory_state["base_pattern"] = [random.choice(["red", "green", "yellow"]) for _ in range(LED_MEMORY_BATCH_SIZE)]
+                        memory_state["status"] = "playing"
+                        memory_state["player_scores"] = {}
+                        print(f"\n[SERVER] Memory Game Batch {memory_state['current_batch']} Started!")
+                        
+                        # Start 60-second timeout
+                        if memory_state["timer_task"]:
+                            memory_state["timer_task"].cancel()
+                        memory_state["timer_task"] = asyncio.create_task(memory_timeout_coroutine())
+                    
+                    # Send the patterns to the player
+                    patterns = [memory_state["base_pattern"][:i+1] for i in range(LED_MEMORY_BATCH_SIZE)]
+                    
+                    log_game_event("led_memory", device_id, "GAME_START", level=f"1-{LED_MEMORY_BATCH_SIZE}", status="PENDING")
                     
                     await websocket.send_text(json.dumps({
-                        "type": "PATTERN", "patterns": patterns, "start_level": 1
+                        "type": "PATTERN", 
+                        "patterns": patterns, 
+                        "start_level": 1,
+                        "batch": memory_state["current_batch"],
+                        "multiplayer": True,
+                        "num_players": len(memory_state["registered_players"])
                     }))
                 
                 # --- WAVELENGTH GAME LOGIC ---
@@ -243,34 +327,32 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             # ---------------------------------------------------------
             elif msg_type == "GAME_RESULTS":
                 score = message.get("score", 0)
-                device = message.get("device_id")
+                device = message.get("device_id", device_id)
                 
                 print(f"\n[SERVER] [RESULTS] Received score from {device}: {score}")
                 
-                old_pattern = game_states.get(device, [])
-                expected_final_level = len(old_pattern)
-                
-                if score < expected_final_level:
-                    # Player failed before completing the batch
-                    log_game_event("led_memory", device, "GAME_OVER", level=str(score), status="LOSS", details=f"Score: {score}")
-                    if device in game_states:
-                        del game_states[device]
-                else:
-                    # Player completed the batch successfully
-                    log_game_event("led_memory", device, "BATCH_WIN", level=str(len(old_pattern)), status="WIN", details=f"Score: {score}")
+                # Handle multiplayer memory game
+                if memory_state["status"] == "playing":
+                    memory_state["player_scores"][device] = score
                     
-                    new_additions = [random.choice(["red", "green", "yellow"]) for _ in range(LED_MEMORY_BATCH_SIZE)]
-                    new_base_pattern = old_pattern + new_additions
-                    game_states[device] = new_base_pattern 
+                    log_game_event("led_memory", device, "SCORE_SUBMITTED", level=str(memory_state["current_batch"]), status="SUBMITTED", details=f"Score: {score}")
                     
-                    start_level = len(old_pattern) + 1
-                    patterns = [new_base_pattern[:i+1] for i in range(len(old_pattern), len(new_base_pattern))]
+                    total_players = len(memory_state["registered_players"])
                     
-                    log_game_event("led_memory", device, "NEXT_BATCH_SENT", level=f"{start_level}-{start_level+9}", status="PENDING")
+                    # Check if all players have submitted their scores
+                    if len(memory_state["player_scores"]) >= total_players and total_players > 1:
+                        print("\n[SERVER] ALL SCORES IN! Ending round early.")
+                        
+                        # Cancel the 60-second timeout since everyone was fast enough
+                        if memory_state["timer_task"]:
+                            memory_state["timer_task"].cancel()
+                            
+                        await process_memory_round_end()
                     
-                    await websocket.send_text(json.dumps({
-                        "type": "PATTERN", "patterns": patterns, "start_level": start_level
-                    }))
+                    elif total_players == 1:
+                        # Single player mode - just log and acknowledge
+                        log_game_event("led_memory", device, "SINGLE_PLAYER_GAME", level=str(score), status="COMPLETED", details=f"Score: {score}")
+                        print(f"[SERVER] Single player game completed with score {score}")
 
     except WebSocketDisconnect:
         manager.disconnect(device_id)
