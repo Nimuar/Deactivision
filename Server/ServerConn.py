@@ -160,6 +160,27 @@ def main():
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
                         print("\n[!] RPS session ended. Listening for new game selection...")
+                    elif msg_type == "MEMORY_RESULTS":
+                        print("\n==========================")
+                        print(" +++ MEMORY GAME RESULTS +++")
+                        print("==========================")
+                        scores = msg.get("scores", {})
+                        winners = msg.get("winners", [])
+                        print("Scores:")
+                        for device, score in scores.items():
+                            print(f"  {device}: {score}")
+                        print("Winners:")
+                        for winner in winners:
+                            print(f"  {winner}")
+                        print("==========================\n")
+                        if DEVICE_NAME in winners:
+                            print("Congratulations! You are a winner!")
+                        else:
+                            print("Better luck next time!")
+                        set_led((0, 50, 0))
+                        print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
+                        print("\n[!] RPS session ended. Listening for new game selection...")
 
                     elif msg_type == "WAVELENGTH_ROLE":
                         role = msg.get("role")
