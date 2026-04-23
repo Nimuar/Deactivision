@@ -165,19 +165,25 @@ def main():
                         role = msg.get("role")
                         
                         if role == "host":
-                            words_list = msg.get("words")
+                            cat_list = msg.get("categories")
+                            cat1_words = msg.get("cat1_words")
+                            cat2_words = msg.get("cat2_words")
+                            cat3_words = msg.get("cat3_words")
+                            cat4_words = msg.get("cat4_words")
+                            cat5_words = msg.get("cat5_words")
                             set_led((50, 0, 50)) # Purple for Host
                             
                             try: websocket.close() 
                             except: pass 
                             
-                            word_idx, target_score = wavelength.host_offline_phase(words_list, btn)
+                            word, target_score, category_idx = wavelength.host_offline_phase(btn, cat_list, cat1_words, cat2_words, cat3_words, cat4_words, cat5_words)
                             
                             websocket = connect_to_server()
                             websocket.send(json.dumps({
                                 "type": "HOST_SUBMIT",
                                 "device_id": DEVICE_NAME,
-                                "word_index": word_idx,
+                                "word_index": word,
+                                "category_index": category_idx,
                                 "score": target_score
                             }))
                             print("\n[+] Host data submitted! Watch the guessers lock in.")
@@ -200,12 +206,13 @@ def main():
                             
                         elif role == "player_guess":
                             word_to_guess = msg.get("word")
+                            cat_to_guess = msg.get("category")
                             set_led((50, 50, 0)) # Yellow for Guesser
                             
                             try: websocket.close() 
                             except: pass 
                             
-                            guess_score = wavelength.player_offline_phase(word_to_guess)
+                            guess_score = wavelength.player_offline_phase(word_to_guess, cat_to_guess)
                             
                             websocket = connect_to_server()
                             websocket.send(json.dumps({
