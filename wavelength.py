@@ -113,7 +113,7 @@ def host_offline_phase(onboard_btn, cat_list, cat1_words, cat2_words, cat3_words
     print("\n========================================")
     print("Select a word by clicking the onboard button 1 to 3 times:\n")
     for w in word_list:
-    print(f"  {w}")
+        print(f"  {w}")
     print("\nWaiting for your selection (Pause clicking to confirm)...")   
 
     click_count = 0
