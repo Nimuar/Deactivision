@@ -14,8 +14,8 @@ short_id = mac_str[-4:]
 
 DEVICE_NAME = f"PLAYER_{short_id}"
 
-WIFI_SSID = "ATTXvnW88k"
-WIFI_PASS = "t846j?v2jrvk"
+WIFI_SSID = "Reinhold2.4"
+WIFI_PASS = "auburn128"
 SERVER_IP = "192.168.1.69" 
 SERVER_URL = f"wss://minigames-render.onrender.com/ws/{DEVICE_NAME}"
 
@@ -84,6 +84,8 @@ import memory
 import wavelength 
 import rockpaperscissor
 # =========================================================
+import gc
+gc.collect()
 
 def connect_to_server():
     while True:
@@ -203,7 +205,7 @@ def main():
                             websocket.send(json.dumps({
                                 "type": "HOST_SUBMIT",
                                 "device_id": DEVICE_NAME,
-                                "word_index": word,
+                                "word": word,
                                 "category_index": category_idx,
                                 "score": target_score
                             }))
@@ -318,3 +320,4 @@ def main():
 if __name__ == "__main__":
     set_led((50, 0, 0))
     main()
+
