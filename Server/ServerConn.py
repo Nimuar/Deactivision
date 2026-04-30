@@ -15,8 +15,7 @@ short_id = mac_str[-4:]
 DEVICE_NAME = f"PLAYER_{short_id}"
 
 WIFI_SSID = "ATTXvnW88k"
-WIFI_PASS = "t846j?v2jrvk"
-SERVER_IP = "192.168.1.69" 
+WIFI_PASS = "t846j?v2jrvk" 
 SERVER_URL = f"wss://minigames-render.onrender.com/ws/{DEVICE_NAME}"
 
 print("====================================")
@@ -156,10 +155,13 @@ def main():
                             print("\n[!] Perfect score! Waiting for next batch...")
                         else:
                             print("\n[!] Game Over. Listening for new game selection...")
-                    elif msg.get("type") == "RPS_READY":
+                    elif msg_type == "RPS_READY":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
                         print("\n[!] RPS session ended. Listening for new game selection...")
+                    elif msg_type == "RPS_WAITING":
+                        print(f"\n[SERVER -> ESP32]: {msg.get('message', 'Waiting for opponent...')}")
+                        set_led((0, 0, 50))
                     elif msg_type == "MEMORY_RESULTS":
                         print("\n==========================")
                         print(" +++ MEMORY GAME RESULTS +++")
