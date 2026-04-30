@@ -223,7 +223,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     }))
                 
                 # --- WAVELENGTH GAME LOGIC ---
- elif game_selected == "wavelength":
+                elif game_selected == "wavelength":
                     if device_id not in wavelength_state["registered_players"]:
                         wavelength_state["registered_players"].append(device_id)
                         print(f"[SERVER] {device_id} joined Wavelength. Total players: {len(wavelength_state['registered_players'])}")
