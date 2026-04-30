@@ -1,5 +1,6 @@
 import machine
 import time
+import minigames as mg
 
 # --- Hardware Setup ---
 # Potentiometer on GPIO34
@@ -15,6 +16,7 @@ btn_yellow = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_DOWN)
 # Speaker Setup (GPIO 32)
 speaker = machine.PWM(machine.Pin(32))
 speaker.duty_u16(0) # Start silent!
+mg.lcd_print("Rock...")
 
 # --- Audio Functions ---
 def play_tone(freq, duration_ms):
@@ -142,7 +144,6 @@ def host_offline_phase(onboard_btn, cat_list, cat1_words, cat2_words, cat3_words
             break
             
         time.sleep_ms(10)
-        
     score = wait_for_lock_in()
     return word, score, cat_idx
 
