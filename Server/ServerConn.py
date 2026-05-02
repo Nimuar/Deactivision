@@ -3,7 +3,8 @@ import time
 import machine
 import json
 import gc
-import ubinascii 
+import ubinascii
+import minigames as mg
 from neopixel import NeoPixel
 
 # --- DEVICE CONFIGURATION (DYNAMIC PLUG-AND-PLAY) ---
@@ -45,11 +46,13 @@ def connect_wifi():
     wlan.active(True)
     if not wlan.isconnected():
         print("Connecting to WiFi...")
+        mg.lcd_print("Connecting to Wifi...")
         wlan.connect(WIFI_SSID, WIFI_PASS)
         while not wlan.isconnected():
             time.sleep(0.5)
             print(".", end="")
     print("\nWiFi Connected! IP:", wlan.ifconfig()[0])
+    mg.lcd_print("WiFi Connected!")
 
 
 # =========================================================
@@ -58,6 +61,7 @@ def connect_wifi():
 connect_wifi()
 
 print("\nChecking required packages...")
+mg.lcd_print("Setting things up!")
 try:
     import uwebsockets.client
     print("[+] 'uwebsockets' is already installed.")
@@ -88,13 +92,16 @@ def connect_to_server():
     while True:
         try:
             print(f"\nConnecting to Server: {SERVER_URL}")
+            mg.lcd_print("Connecting to Server...")
             ws = uwebsockets.client.connect(SERVER_URL)
             ws.sock.setblocking(False)
             print("Server Connected!")
+            mg.lcd_print("Server Connected!")
             set_led((0, 50, 0))
             return ws
         except Exception as e:
             print(f"Failed to connect: {e}. Retrying in 3 seconds...")
+            mg.lcd_print("Failed to connect! Retrying...")
             set_led((50, 0, 0))
             time.sleep(3)
 
@@ -116,6 +123,8 @@ def main():
     print(" 2x -> Rock Paper Scissors")
     print(" 3x -> Wavelength")
     
+    mg.lcd_show_menu()
+    
     while True:
         try:
             time.sleep_ms(10)
@@ -132,8 +141,13 @@ def main():
                         patterns_array = msg.get("patterns")
                         start_level = msg.get("start_level", 1) 
                         print(f"\n[SERVER -> ESP32]: Downloaded {len(patterns_array)} levels starting at Level {start_level}.")
+                        mg.lcd_print(f"{len(patterns_array)} levels available")
+                        time.sleep(3)
+                        mg.lcd_print(f"Starting Level {start_level}")
+                        time.sleep(3)
                         
                         print("\n[!] Disconnecting from server for offline gameplay...")
+                        time.sleep(3)
                         set_led((0, 0, 50)) 
                         try: websocket.close()
                         except: pass
@@ -141,6 +155,7 @@ def main():
                         score = memory.play_simon_game(patterns_array, start_level)
                         
                         print("\n[!] Game finished. Reconnecting to upload results...")
+                        mg.lcd_print("Game done. Reconnecting...")
                         websocket = connect_to_server()
                         
                         payload = {
@@ -150,6 +165,7 @@ def main():
                         }
                         websocket.send(json.dumps(payload))
                         print(f"--> Uploaded score: {score}")
+                        mg.lcd_print(f"Score: {score}")
                         
                         if score == len(patterns_array):
                             print("\n[!] Perfect score! Waiting for next batch...")
@@ -157,15 +173,19 @@ def main():
                             print("\n[!] Game Over. Listening for new game selection...")
                     elif msg_type == "RPS_READY":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
+                        mg.lcd_print("Rock Paper Scissors Ready")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
                         print("\n[!] RPS session ended. Listening for new game selection...")
+                        mg.lcd_print("Rock Paper Scissors Done")
                     elif msg_type == "RPS_WAITING":
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'Waiting for opponent...')}")
+                        mg.lcd_print("Waiting opponent...")
                         set_led((0, 0, 50))
                     elif msg_type == "MEMORY_RESULTS":
                         print("\n==========================")
                         print(" +++ MEMORY GAME RESULTS +++")
                         print("==========================")
+                        mg.lcd_print("Memory Results")
                         scores = msg.get("scores", {})
                         winners = msg.get("winners", [])
                         print("Scores:")
@@ -177,8 +197,10 @@ def main():
                         print("==========================\n")
                         if DEVICE_NAME in winners:
                             print("Congratulations! You are a winner!")
+                            mg.lcd_print("You Win!")
                         else:
                             print("Better luck next time!")
+                            mg.lcd_print("You Lose :(")
                         set_led((0, 50, 0))
                         print(f"\n[SERVER -> ESP32]: {msg.get('message', 'RPS ready')} (game id: {msg.get('game_id')})")
                         rockpaperscissor.RPS_player(websocket, DEVICE_NAME)
@@ -195,6 +217,7 @@ def main():
                             cat4_words = msg.get("cat4_words")
                             cat5_words = msg.get("cat5_words")
                             set_led((50, 0, 50)) # Purple for Host
+                            mg.lcd_print("You are HOST")
                             
                             try: websocket.close() 
                             except: pass 
@@ -210,10 +233,12 @@ def main():
                                 "score": target_score
                             }))
                             print("\n[+] Host data submitted! Watch the guessers lock in.")
+                            mg.lcd_print("Host submitted")
                             
                         elif role == "player_wait":
                             set_led((0, 0, 50)) # Blue for Waiting
                             print("\n<<< Waiting for HOST to select word and value... >>>")
+                            mg.lcd_print("Waiting host...")
                             
                             try: websocket.close() 
                             except: pass 
@@ -231,6 +256,7 @@ def main():
                             word_to_guess = msg.get("word")
                             cat_to_guess = msg.get("category")
                             set_led((50, 50, 0)) # Yellow for Guesser
+                            mg.lcd_print("Guessing...")
                             
                             try: websocket.close() 
                             except: pass 
@@ -244,6 +270,7 @@ def main():
                                 "score": guess_score
                             }))
                             print("\n[+] Guess submitted! Waiting for round results...")
+                            mg.lcd_print("Guess sent")
 
                     elif msg_type == "ROUND_RESULTS":
                         # Play a big fanfare when results arrive
@@ -252,16 +279,17 @@ def main():
                         print("\n==========================")
                         print(" +++ ROUND COMPLETE +++")
                         print("==========================")
+                        mg.lcd_print("Round Complete")
                         print(f"Target Score: {msg.get('target')}%")
+                        mg.lcd_print(f"Target: {msg.get('target')}%")
                         print("Guesses:")
                         for device, score in msg.get('guesses').items():
                             print(f"  {device}: {score}%")
                         print("==========================\n")
                         print("LOBBY READY: Click onboard to start next round.")
+                        mg.lcd_print("Lobby Ready")
                         print("PRESS ONBOARD button:")
-                        print(" 1x -> Memory Game")
-                        print(" 2x -> Rock Paper Scissors")
-                        print(" 3x -> Wavelength")
+                        mg.lcd_show_menu()
                         set_led((0, 50, 0))
 
             except OSError:
@@ -284,14 +312,21 @@ def main():
                 if click_count == 1:
                     game_selection = "led_memory"
                     print("\n[!] Selected: LED Memory Game")
+                    mg.lcd_print("Memory Game Selected")
+                    time.sleep(3)
                 elif click_count == 2:
                     game_selection = "rps"
                     print("\n[!] Selected: Rock Paper Scissors")
+                    mg.lcd_print("Rock Paper Scissors Selected")
+                    time.sleep(3)
                 elif click_count == 3:
                     game_selection = "wavelength"
                     print("\n[!] Selected: Wavelength")
+                    mg.lcd_print("Wavelength Selected")
+                    time.sleep(3)
                 else:
                     print(f"\n[X] Invalid input: {click_count} clicks. Resetting.")
+                    mg.lcd_print("Invalid Input. Resetting...")
                     game_selection = None
                 
                 if game_selection:
@@ -305,6 +340,7 @@ def main():
                         print("--> Sent request to server.")
                     except OSError:
                         print("\n[!] Connection lost during send. Reconnecting...")
+                        mg.lcd_print("Reconnecting...")
                         websocket = connect_to_server()
                         websocket.send(json.dumps(payload))
                 

@@ -1,6 +1,6 @@
 import machine
 from machine import Pin, ADC, PWM, Timer, I2C
-from time import sleep
+from time import sleep, sleep_ms
 from lcd_class import I2cLcd
 
 ##############GPIO SETUP##############
@@ -36,6 +36,8 @@ pwm_speaker = PWM(Pin(32), freq=10, duty_u16=0)
 game = "none"
 role = "none"
 
+MIN_LCD_DISPLAY_TIME = 3 #seconds
+
 ##########COMMON FUNCTIONS##########
 
 def set_led(color):
@@ -69,12 +71,39 @@ def beepSound(freq, duration):
     sleep(duration)
     pwm_speaker.duty(0)
 
+# def lcd_print(text):
+#     """Print text to LCD"""
+#     lcd.clear()
+#     lcd.lcd_print(text[:16])
+
 def lcd_print(text):
-    """Print text to LCD"""
     lcd.clear()
-    lcd.lcd_print(text[:16])
-
-
+    
+    line1 = text[:16]
+    line2 = text[16:32]
+    
+    lcd.move_to(0, 0)
+    lcd.lcd_print(line1)
+    
+    if line2:
+        lcd.move_to(0, 1)
+        lcd.lcd_print(line2)
+    sleep(MIN_LCD_DISPLAY_TIME)
+        
+def lcd_show_menu():
+    screens = [
+        ("Push button 1x:","Memory Game"),
+        ("Push button 2x:", "RockPaperScissors"),
+        ("Push button 3x:", "Wave Game"),
+    ]
+    
+    for line1, line2 in screens:
+        lcd.clear()
+        lcd.lcd_print(line1[:16])
+        lcd._cmd(0xC0)
+        lcd.lcd_print(line2[:16])
+        sleep(1.5)
+        
 ###########INTERRUPTS################   
     
 def yellow_buttonpress(pin):

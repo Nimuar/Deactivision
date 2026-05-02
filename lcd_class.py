@@ -47,6 +47,10 @@ class I2cLcd:
     def clear(self):
         self._cmd(self.LCD_CLR)
         time.sleep_ms(2)
+        
+    def move_to(self, col, row):
+        row_offsets = [0x00, 0x40, 0x14, 0x54]
+        self._cmd(0x80 | (col + row_offsets[row]))
 
     def lcd_print(self, string):
         for char in string:
