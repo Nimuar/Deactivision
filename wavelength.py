@@ -1,5 +1,6 @@
 import machine
 import time
+import minigames as mg
 
 # --- Hardware Setup ---
 # Potentiometer on GPIO34
@@ -64,12 +65,12 @@ def wait_for_lock_in():
             
         time.sleep_ms(50)
 
-def host_offline_phase(words_list, onboard_btn):
+def host_offline_phase(onboard_btn, cat_list, cat1_words, cat2_words, cat3_words, cat4_words, cat5_words):
     print("\n========================================")
     print(" +++ YOU ARE THE HOST +++")
     print("========================================")
     print("Select a category by clicking the onboard button 1 to 5 times:\n")
-    for w in words_list:
+    for w in cat_list:
         print(f"  {w}")
     print("\nWaiting for your selection (Pause clicking to confirm)...")
 
@@ -95,19 +96,62 @@ def host_offline_phase(words_list, onboard_btn):
                 click_count = 5 
             play_tone(440, 200) # Confirmation tone
             print(f"\n+++ You selected Option {click_count}! +++")
+            cat_idx = click_count - 1
             break
             
         time.sleep_ms(10)
-        
-    score = wait_for_lock_in()
-    return click_count, score
 
-def player_offline_phase(word):
+    if click_count == 1:
+        word_list = cat1_words
+    elif click_count == 2:
+        word_list = cat2_words
+    elif click_count == 3:
+        word_list = cat3_words
+    elif click_count == 4:
+        word_list = cat4_words
+    elif click_count == 5:
+        word_list = cat5_words
+    print("\n========================================")
+    print("Select a word by clicking the onboard button 1 to 3 times:\n")
+    for w in word_list:
+        print(f"  {w}")
+    print("\nWaiting for your selection (Pause clicking to confirm)...")   
+
+    click_count = 0
+    last_click_time = time.ticks_ms()
+    last_btn_state = onboard_btn.value()
+    
+    while True:
+        current_time = time.ticks_ms()
+        current_btn_state = onboard_btn.value()
+        
+        if current_btn_state == 0 and last_btn_state == 1:
+            if time.ticks_diff(current_time, last_click_time) > 50:
+                sound_click() # Play a tick sound per click
+                click_count += 1
+                last_click_time = current_time
+                print(f"  Click {click_count}...")
+        
+        last_btn_state = current_btn_state
+        
+        if click_count > 0 and time.ticks_diff(current_time, last_click_time) > 2000:
+            if click_count > 3: 
+                click_count = 3 
+            play_tone(440, 200) # Confirmation tone
+            print(f"\n+++ You selected Option {click_count}! +++")
+            word = word_list[click_count - 1]
+            break
+            
+        time.sleep_ms(10)
+    score = wait_for_lock_in()
+    return word, score, cat_idx
+
+def player_offline_phase(word, cat):
     print("\n========================================")
     print(" +++ YOU ARE A GUESSER +++")
     print("========================================")
-    print(f"The Host's Category is:\n\n   <<< {word} >>>\n")
-    
+    print(f"The Host's Category is:\n\n   <<< {cat} >>>\n")
+    print(f"The Host's Word is:\n\n   <<< {word} >>>\n")
     # Alert the guesser it's their turn
     play_tone(600, 150) 
     time.sleep_ms(100)
