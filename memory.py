@@ -11,7 +11,8 @@ def play_pattern_sequence(pattern):
     print("\nEyes on the board!")
 
     print(f"Sequence starting...")
-    time.sleep(0.5)
+    mg.lcd_print("Eyes on the LEDs!")
+    time.sleep(3)
         
     print("Playing pattern...")
     print(f"Cheat sheet (for testing): {pattern}")
@@ -26,6 +27,7 @@ def play_pattern_sequence(pattern):
 
 def get_user_input(expected_pattern):
     print(f"\n>>> Your turn! Press the buttons in order... (You have {TIMEOUT_MS//1000} seconds) <<<")
+    mg.lcd_print("Press buttons in order! ")
     user_pattern = []
     
     prev_red_cnt = mg.red_button_cnt
@@ -39,6 +41,7 @@ def get_user_input(expected_pattern):
         
         if time.ticks_diff(current_time, timeout_start) > TIMEOUT_MS:
             print("Timeout! No input received.")
+            mg.lcd_print("Timeout! No input received.")
             return None
         
         pressed_color = None
@@ -55,6 +58,7 @@ def get_user_input(expected_pattern):
 
         if pressed_color:
             print(f"{pressed_color.upper()} button pressed!")
+            #mg.lcd_print(f"{pressed_color.upper()} button pressed!")
             user_pattern.append(pressed_color)
             
             mg.set_led(pressed_color)
@@ -63,6 +67,7 @@ def get_user_input(expected_pattern):
             
             if user_pattern[-1] != expected_pattern[len(user_pattern) - 1]:
                 print(f"Wrong button! Expected {expected_pattern[len(user_pattern) - 1].upper()}")
+                mg.lcd_print(f"Wrong button! Expected {expected_pattern[len(user_pattern) - 1].upper()}")
                 return None
             
             timeout_start = time.ticks_ms()
@@ -92,6 +97,7 @@ def play_simon_game(server_patterns_array, start_level=1):
         
         if user_input is None:
             print("\nGame Over - Wrong input or Timeout!")
+            mg.lcd_print("Game Over!")
             for _ in range(3):
                 mg.set_led("red")
                 time.sleep(0.5)
@@ -100,10 +106,12 @@ def play_simon_game(server_patterns_array, start_level=1):
             return score
             
         print(f"Correct! Level {level} complete!")
+        mg.lcd_print(f"Correct! Level {level} complete!")
         score += 1
         time.sleep(1.0)
     
     print(f"\nSuccess! You completed up to Level {start_level + len(server_patterns_array) - 1}!")
+    mg.lcd_print(f"\nSuccess! You completed up to Level {start_level + len(server_patterns_array) - 1}!")
     mg.set_led("all")
     time.sleep(2.0)
     mg.clear_led()
