@@ -14,14 +14,8 @@ short_id = mac_str[-4:]
 
 DEVICE_NAME = f"PLAYER_{short_id}"
 
-<<<<<<< HEAD
-WIFI_SSID = "Reinhold2.4"
-WIFI_PASS = "auburn128"
-SERVER_IP = "192.168.1.69" 
-=======
 WIFI_SSID = "ATTXvnW88k"
 WIFI_PASS = "t846j?v2jrvk" 
->>>>>>> e55e544 (Update server.py for RPS integration (#21))
 SERVER_URL = f"wss://minigames-render.onrender.com/ws/{DEVICE_NAME}"
 
 print("====================================")

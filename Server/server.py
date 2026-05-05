@@ -237,8 +237,6 @@ wavelength_state = {
     "guesses": {} 
 }
 
-<<<<<<< HEAD
-=======
 async def process_wavelength_round_end():
     """Forces the round to end, broadcasts results, and cycles the host."""
     logger.info("Round Complete (All Guesses In or Timeout Reached).")
@@ -290,7 +288,6 @@ async def wavelength_timeout_coroutine():
 # MAIN WEBSOCKET ENDPOINT
 # =========================================================
 
->>>>>>> e55e544 (Update server.py for RPS integration (#21))
 @app.websocket("/ws/{device_id}")
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
     await manager.connect(device_id, websocket)
@@ -575,15 +572,12 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     }))
 
     except WebSocketDisconnect:
-<<<<<<< HEAD
-=======
         logger.info(f"WebSocket closed by client: {device_id}")
         await handle_rps_disconnect(device_id)
         manager.disconnect(device_id)
     except Exception as e:
         logger.error(f"Unexpected error with client {device_id}: {e}", exc_info=True)
         await handle_rps_disconnect(device_id)
->>>>>>> e55e544 (Update server.py for RPS integration (#21))
         manager.disconnect(device_id)
 
 def get_local_ip():

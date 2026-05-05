@@ -1,6 +1,7 @@
 import machine
-from machine import Pin, ADC, PWM, Timer
+from machine import Pin, ADC, PWM, Timer, I2C
 from time import sleep
+from lcd_class import I2cLcd
 
 ##############GPIO SETUP##############
 led_board = Pin(13, Pin.OUT)
@@ -25,6 +26,9 @@ button_timer = Timer(0)
 pot_timer = Timer(1)
 wavelength_timer = Timer(2)
 wave_timeout = False
+
+i2c = I2C(0, scl=Pin(14), sda=Pin(22), freq=400000)
+lcd = I2cLcd(i2c, 0x27, 2, 16)
 
 pot = ADC(Pin(34, Pin.IN))
 pwm_speaker = PWM(Pin(32), freq=10, duty_u16=0) 
@@ -67,10 +71,6 @@ def beepSound(freq, duration):
 
 def lcd_print(text):
     """Print text to LCD"""
-    from lcd_class import I2cLcd
-    from machine import I2C, Pin
-    i2c = I2C(0, scl=Pin(20), sda=Pin(22), freq=400000)
-    lcd = I2cLcd(i2c, 0x27, 2, 16)
     lcd.clear()
     lcd.lcd_print(text[:16])
 
