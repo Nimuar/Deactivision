@@ -9,9 +9,9 @@ red_led = Pin(12, Pin.OUT)
 green_led = Pin(27, Pin.OUT)
 yellow_led = Pin(33, Pin.OUT)
 
-red_button = Pin(19, Pin.IN, Pin.PULL_DOWN)
-green_button = Pin(5, Pin.IN, Pin.PULL_DOWN)
-yellow_button = Pin(4, Pin.IN, Pin.PULL_DOWN)
+red_button = Pin(19, Pin.IN, Pin.PULL_UP)
+green_button = Pin(5, Pin.IN, Pin.PULL_UP)
+yellow_button = Pin(4, Pin.IN, Pin.PULL_UP)
 red_button_pressed = False
 green_button_pressed = False
 yellow_button_pressed = False
@@ -139,8 +139,7 @@ def Wavelength_player():
     button_count = red_button_cnt + green_button_cnt + yellow_button_cnt
     Wavestate = "active"
     #Receive word/category and display as text - need help Henry/Tom
-    #Start 30sec timer
-    wavelength_timer.init(period=30000, mode=Timer.ONE_SHOT, callback=wavelength_timeout)
+    wavelength_timer.init(period=30000, mode=Timer.ONE_SHOT, callback=wavelength_timeout)   #Start 30sec timer
     #Display countdown on board?
     #Read POT if we need to display it, otherwise just read when timer expires or button is hit. 
     pot_timer.init(period=100, mode=Timer.PERIODIC, callback=potread)
@@ -149,19 +148,51 @@ def Wavelength_player():
     while Wavestate == "active":
         if button_count != (red_button_cnt + green_button_cnt + yellow_button_cnt) or (wave_timeout == True):
             pot_value = pot.read()
+            score = (4096 - pot_value) / 4096 * 100
             Wavestate = "inactive"
             wavelength_timer.deinit()
-            #Submit pot_val to server
+            #Submit score to server -  need help Henry/Tom
+    #do we want to wait for server to send back the winner before returning to lobby?
+    return
+
+def Wavelength_host():
+    global red_button_pressed, yellow_button_pressed, green_button_pressed
+    red_button_pressed = False
+    green_button_pressed = False
+    yellow_button_pressed = False
+    #Host receives 3 word & category and displays to player - need help Henry/Tom
+    Wavestate = "active"
+    while Wavestate == "active":
+        if red_button_pressed:
+            waveword = "red" #placeholder for actual word received from server corresponding to red button
+            pot_value = pot.read()
+            score = (4096 - pot_value) / 4096 * 100
+            #send score to server - need help Henry/Tom
+            Wavestate = "inactive"
+        elif green_button_pressed:
+            waveword = "green" #placeholder for actual word received from server corresponding to green button
+            pot_value = pot.read()
+            score = (4096 - pot_value) / 4096 * 100
+            #send score to server - need help Henry/Tom
+            Wavestate = "inactive"
+        elif yellow_button_pressed:
+            waveword = "yellow" #placeholder for actual word received from server corresponding to yellow button
+            pot_value = pot.read()
+            score = (4096 - pot_value) / 4096 * 100
+            #send score to server - need help Henry/Tom
+            Wavestate = "inactive"        
+    return
 
 def Wavelength_lobby():
-    #Server decides who host/player are 
+    #Server decides who host/player are - need help Henry/Tom getting the role from server
     #OPTIONAL: Potentiometer calibration
     #Based on server assignment call the appropriate host or player function
     if role == "host":
         Wavelength_host()
     elif role == "player":
         Wavelength_player()
-
+    return
+    #decide when to return to main function - maybe after each round or after a set number of rounds?
 
 ###############MEMORY GAME#############
 

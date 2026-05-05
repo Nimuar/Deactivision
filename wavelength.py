@@ -16,6 +16,7 @@ btn_yellow = machine.Pin(4, machine.Pin.IN, machine.Pin.PULL_DOWN)
 # Speaker Setup (GPIO 32)
 speaker = machine.PWM(machine.Pin(32))
 speaker.duty_u16(0) # Start silent!
+mg.lcd_print("Rock...")
 
 # --- Audio Functions ---
 def play_tone(freq, duration_ms):
